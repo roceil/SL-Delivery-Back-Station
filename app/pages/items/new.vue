@@ -196,15 +196,21 @@ async function submitForm() {
                   {{ merchant.name }} - {{ merchant.address.substring(0, 20) }}...
                 </option>
               </select>
-              
-              <div v-if="form.senderMerchantId" class="mt-3 rounded-lg bg-gray-50 p-3">
+
+              <div
+                v-if="form.senderMerchantId"
+                class="mt-3 rounded-lg bg-gray-50 p-3"
+              >
                 <div class="text-sm font-medium text-gray-900">
                   寄件地址預覽
                 </div>
                 <div class="mt-1 text-sm text-gray-600">
                   {{ selectedSenderMerchant?.address }}
                 </div>
-                <div v-if="selectedSenderMerchant?.phone" class="mt-1 text-xs text-gray-500">
+                <div
+                  v-if="selectedSenderMerchant?.phone"
+                  class="mt-1 text-xs text-gray-500"
+                >
                   📞 {{ selectedSenderMerchant.phone }}
                 </div>
               </div>
@@ -232,18 +238,27 @@ async function submitForm() {
                   {{ point.type }} - {{ point.name }} ({{ point.address.substring(0, 20) }}...)
                 </option>
               </select>
-              
-              <div v-if="form.deliveryPointId" class="mt-3 rounded-lg bg-gray-50 p-3">
+
+              <div
+                v-if="form.deliveryPointId"
+                class="mt-3 rounded-lg bg-gray-50 p-3"
+              >
                 <div class="text-sm font-medium text-gray-900">
                   收件地址預覽
                 </div>
                 <div class="mt-1 text-sm text-gray-600">
                   {{ selectedDeliveryPoint?.address }}
                 </div>
-                <div v-if="selectedDeliveryPoint?.phone" class="mt-1 text-xs text-gray-500">
+                <div
+                  v-if="selectedDeliveryPoint?.phone"
+                  class="mt-1 text-xs text-gray-500"
+                >
                   📞 {{ selectedDeliveryPoint.phone }}
                 </div>
-                <div v-if="selectedDeliveryPoint?.openHours" class="mt-1 text-xs text-gray-500">
+                <div
+                  v-if="selectedDeliveryPoint?.openHours"
+                  class="mt-1 text-xs text-gray-500"
+                >
                   🕒 {{ selectedDeliveryPoint.openHours }}
                 </div>
               </div>
@@ -255,7 +270,7 @@ async function submitForm() {
           <h3 class="mb-4 text-lg font-medium text-gray-900">
             結帳商家
           </h3>
-          
+
           <div class="mb-4 rounded-lg bg-blue-50 p-3">
             <p class="text-sm text-blue-800">
               💡 系統已自動選擇寄件商家作為結帳商家。如需使用不同的結帳商家，請勾選下方選項。

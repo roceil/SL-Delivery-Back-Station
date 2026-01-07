@@ -35,10 +35,14 @@ async function markAsPaid(billingId: string) {
       method: 'POST',
     })
 
-    const billIndex = billingData.value?.findIndex((b: any) => b.id === billingId)
-    if (billIndex !== undefined && billIndex > -1 && billingData.value) {
-      billingData.value[billIndex].status = 'paid'
-      billingData.value[billIndex].paidAt = new Date().toISOString()
+    const data = billingData.value
+    if (!data)
+      return
+
+    const billIndex = data.findIndex((b: any) => b.id === billingId)
+    if (billIndex > -1 && data[billIndex]) {
+      data[billIndex].status = 'paid'
+      data[billIndex].paidAt = new Date().toISOString()
     }
   }
   catch (error) {
@@ -225,7 +229,7 @@ const pendingAmount = computed(() => {
       </div>
 
       <div
-        v-if="billingData.length === 0"
+        v-if="!billingData || billingData.length === 0"
         class="py-12 text-center"
       >
         <svg

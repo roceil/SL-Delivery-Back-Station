@@ -35,11 +35,15 @@ async function dispatchTrip(tripId: string) {
       method: 'POST',
     })
 
-    const tripIndex = trips.value?.findIndex((t: any) => t.id === tripId)
-    if (tripIndex !== undefined && tripIndex > -1 && trips.value) {
-      trips.value[tripIndex].status = 'dispatched'
-      trips.value[tripIndex].dispatchedAt = new Date().toISOString()
-      trips.value[tripIndex].trackingUrl = `${window.location.origin}/trips/track/${tripId}`
+    const data = trips.value
+    if (!data)
+      return
+
+    const tripIndex = data.findIndex((t: any) => t.id === tripId)
+    if (tripIndex > -1 && data[tripIndex]) {
+      data[tripIndex].status = 'dispatched'
+      data[tripIndex].dispatchedAt = new Date().toISOString()
+      data[tripIndex].trackingUrl = `${window.location.origin}/trips/track/${tripId}`
     }
   }
   catch (error) {
@@ -57,19 +61,19 @@ async function viewTripMap(tripId: string) {
   try {
     // 獲取行程的物品信息
     const tripItems = await $fetch(`/api/trips/${tripId}/items`)
-    
+
     if (tripItems && tripItems.length > 0) {
       // 收集所有地址
       const allAddresses: string[] = []
-      
+
       // 添加所有寄件地址
       tripItems.forEach((item: any) => {
         if (!allAddresses.includes(item.senderAddress)) {
           allAddresses.push(item.senderAddress)
         }
       })
-      
-      // 添加所有收件地址  
+
+      // 添加所有收件地址
       tripItems.forEach((item: any) => {
         if (!allAddresses.includes(item.receiverAddress)) {
           allAddresses.push(item.receiverAddress)
@@ -80,7 +84,8 @@ async function viewTripMap(tripId: string) {
       const mapUrl = `https://www.google.com/maps/dir/${waypoints}`
       window.open(mapUrl, '_blank')
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('無法獲取行程地圖:', error)
   }
 }
@@ -252,7 +257,7 @@ async function viewTripMap(tripId: string) {
       </div>
 
       <div
-        v-if="trips.length === 0"
+        v-if="!trips || trips.length === 0"
         class="py-12 text-center"
       >
         <svg

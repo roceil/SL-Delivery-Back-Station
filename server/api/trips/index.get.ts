@@ -1,4 +1,4 @@
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (_event) => {
   const mockTrips = [
     {
       id: 'trip1',
@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
       createdAt: '2024-01-15T08:00:00Z',
       dispatchedAt: '2024-01-16T09:00:00Z',
       completedAt: null,
+      // @ts-expect-error - process is available in Nitro runtime
       trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/trip1`,
     },
     {
@@ -24,6 +25,7 @@ export default defineEventHandler(async (event) => {
       createdAt: '2024-01-13T10:00:00Z',
       dispatchedAt: '2024-01-14T08:30:00Z',
       completedAt: '2024-01-18T16:20:00Z',
+      // @ts-expect-error - process is available in Nitro runtime
       trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/trip2`,
     },
     {

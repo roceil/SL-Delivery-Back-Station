@@ -1,5 +1,5 @@
 export default defineEventHandler(async (event) => {
-  const tripId = getRouterParam(event, 'id')
+  const _tripId = getRouterParam(event, 'id')
 
   const mockTripItems = [
     {

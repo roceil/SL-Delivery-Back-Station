@@ -1,4 +1,4 @@
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (_event) => {
   // 模擬收件地資料
   const deliveryPoints = [
     {

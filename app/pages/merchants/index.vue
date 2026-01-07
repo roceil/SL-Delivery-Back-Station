@@ -29,7 +29,7 @@ async function deleteMerchant(merchantId: string) {
 
   try {
     await $fetch(`/api/merchants/${merchantId}`, {
-      method: 'DELETE',
+      method: 'delete' as any,
     })
     await refresh()
   }
@@ -113,7 +113,7 @@ async function deleteMerchant(merchantId: string) {
       </div>
 
       <div
-        v-if="merchants.length === 0"
+        v-if="!merchants || merchants.length === 0"
         class="py-12 text-center"
       >
         <svg

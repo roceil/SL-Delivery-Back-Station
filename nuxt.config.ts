@@ -8,9 +8,9 @@ export default defineNuxtConfig({
     plugins: [
       tailwindcss(),
     ],
-    server:{
-      allowedHosts:['27f6fe13f9c7.ngrok-free.app']
-    }
+    server: {
+      allowedHosts: ['27f6fe13f9c7.ngrok-free.app'],
+    },
   },
 
   modules: [

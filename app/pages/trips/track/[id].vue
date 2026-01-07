@@ -25,15 +25,15 @@ function openMap() {
   if (tripItems.value && tripItems.value.length > 0) {
     // 優化路線：先收集所有地址，然後規劃最佳路線
     const allAddresses: string[] = []
-    
+
     // 添加所有寄件地址
     tripItems.value.forEach((item: any) => {
       if (!allAddresses.includes(item.senderAddress)) {
         allAddresses.push(item.senderAddress)
       }
     })
-    
-    // 添加所有收件地址  
+
+    // 添加所有收件地址
     tripItems.value.forEach((item: any) => {
       if (!allAddresses.includes(item.receiverAddress)) {
         allAddresses.push(item.receiverAddress)
@@ -78,10 +78,10 @@ const remainingItems = computed(() => {
       <div class="mb-6 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-gray-900">
-            {{ trip.name }}
+            {{ trip?.name }}
           </h1>
           <p class="text-gray-600">
-            {{ trip.description }}
+            {{ trip?.description }}
           </p>
         </div>
         <div class="text-right">
@@ -100,7 +100,7 @@ const remainingItems = computed(() => {
             行程資訊
           </h3>
           <div class="space-y-1 text-sm text-blue-800">
-            <div>預計日期: {{ new Date(trip.scheduledDate).toLocaleDateString('zh-TW') }}</div>
+            <div>預計日期: {{ trip?.scheduledDate ? new Date(trip.scheduledDate).toLocaleDateString('zh-TW') : 'N/A' }}</div>
             <div>總物品數: {{ tripItems?.length || 0 }}</div>
             <div>已完成: {{ completedItems.length }}</div>
           </div>
@@ -113,14 +113,29 @@ const remainingItems = computed(() => {
           <div class="space-y-2">
             <button
               class="
-                w-full text-left text-sm text-green-600
-                hover:text-green-800 flex items-center gap-x-2
+                flex w-full items-center gap-x-2 text-left text-sm
+                text-green-600
+                hover:text-green-800
               "
               @click="openMap"
             >
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
+                />
               </svg>
               打開 Google 地圖導航
             </button>
@@ -164,7 +179,11 @@ const remainingItems = computed(() => {
 
       <!-- 路線地圖 -->
       <div class="border-t pt-6">
-        <TripMap v-if="tripItems" :trip-items="tripItems" :trip-name="trip?.name" />
+        <TripMap
+          v-if="tripItems"
+          :trip-items="tripItems"
+          :trip-name="trip?.name"
+        />
       </div>
 
       <div class="border-t pt-6">

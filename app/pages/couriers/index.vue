@@ -133,7 +133,7 @@ function getCourierStats(courierId: string) {
       </div>
 
       <div
-        v-if="couriers.length === 0"
+        v-if="!couriers || couriers.length === 0"
         class="py-12 text-center"
       >
         <svg
@@ -164,7 +164,7 @@ function getCourierStats(courierId: string) {
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-4">
           <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
             <div class="text-2xl font-bold text-blue-600">
-              {{ couriers.length }}
+              {{ couriers?.length || 0 }}
             </div>
             <div class="text-sm text-blue-800">
               總快遞員數
@@ -172,7 +172,7 @@ function getCourierStats(courierId: string) {
           </div>
           <div class="rounded-lg border border-green-200 bg-green-50 p-4">
             <div class="text-2xl font-bold text-green-600">
-              {{ couriers.filter(c => c.status === 'available').length }}
+              {{ couriers?.filter(c => c.status === 'available').length || 0 }}
             </div>
             <div class="text-sm text-green-800">
               可用快遞員
@@ -180,7 +180,7 @@ function getCourierStats(courierId: string) {
           </div>
           <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
             <div class="text-2xl font-bold text-yellow-600">
-              {{ couriers.filter(c => c.status === 'busy').length }}
+              {{ couriers?.filter(c => c.status === 'busy').length || 0 }}
             </div>
             <div class="text-sm text-yellow-800">
               忙碌中
@@ -188,7 +188,7 @@ function getCourierStats(courierId: string) {
           </div>
           <div class="rounded-lg border border-purple-200 bg-purple-50 p-4">
             <div class="text-2xl font-bold text-purple-600">
-              {{ courierStats.value?.reduce((sum, s) => sum + s.totalEarnings, 0) || 0 }}
+              {{ courierStats?.reduce((sum: number, s: any) => sum + s.totalEarnings, 0) || 0 }}
             </div>
             <div class="text-sm text-purple-800">
               總收入

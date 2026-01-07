@@ -1,13 +1,13 @@
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
-  
+
   if (!id) {
     throw createError({
       statusCode: 400,
       statusMessage: 'ID is required',
     })
   }
-  
+
   // 模擬收件地詳情
   const deliveryPoint = {
     id,
@@ -20,6 +20,6 @@ export default defineEventHandler(async (event) => {
     status: 'active',
     createdAt: '2024-01-15T10:00:00Z',
   }
-  
+
   return deliveryPoint
 })

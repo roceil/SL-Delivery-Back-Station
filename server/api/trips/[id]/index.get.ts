@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
     createdAt: '2024-01-15T08:00:00Z',
     dispatchedAt: '2024-01-16T09:00:00Z',
     completedAt: null,
+    // @ts-expect-error - process is available in Nitro runtime
     trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/${tripId}`,
   }
 

@@ -130,7 +130,7 @@ async function submitForm() {
           </h3>
 
           <div
-            v-if="availableItems.length === 0"
+            v-if="!availableItems || availableItems.length === 0"
             class="py-8 text-center text-gray-500"
           >
             沒有可用的物品，請先建立物品。

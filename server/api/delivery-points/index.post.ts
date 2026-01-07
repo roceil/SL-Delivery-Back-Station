@@ -1,6 +1,6 @@
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  
+
   // 模擬新增收件地
   const newDeliveryPoint = {
     id: Date.now().toString(),
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     status: body.status || 'active',
     createdAt: new Date().toISOString(),
   }
-  
+
   return {
     success: true,
     data: newDeliveryPoint,

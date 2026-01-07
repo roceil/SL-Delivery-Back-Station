@@ -6,8 +6,10 @@ useHead({
 const { data: deliveryPoints } = await useFetch('/api/delivery-points')
 
 async function deleteDeliveryPoint(id: string) {
-  if (!confirm('確定要刪除這個收件地嗎？')) return
-  
+  // eslint-disable-next-line no-alert
+  if (!confirm('確定要刪除這個收件地嗎？'))
+    return
+
   try {
     await $fetch(`/api/delivery-points/${id}`, {
       method: 'DELETE',
@@ -88,42 +90,63 @@ async function deleteDeliveryPoint(id: string) {
 
       <div
         v-else
-        class="overflow-hidden bg-white shadow ring-1 ring-black ring-opacity-5 md:rounded-lg"
+        class="
+          ring-opacity-5 overflow-hidden bg-white shadow ring-1 ring-black
+          md:rounded-lg
+        "
       >
         <table class="min-w-full divide-y divide-gray-300">
           <thead class="bg-gray-50">
             <tr>
               <th
                 scope="col"
-                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                class="
+                  px-6 py-3 text-left text-xs font-medium tracking-wide
+                  text-gray-500 uppercase
+                "
               >
                 收件地名稱
               </th>
               <th
                 scope="col"
-                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                class="
+                  px-6 py-3 text-left text-xs font-medium tracking-wide
+                  text-gray-500 uppercase
+                "
               >
                 類型
               </th>
               <th
                 scope="col"
-                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                class="
+                  px-6 py-3 text-left text-xs font-medium tracking-wide
+                  text-gray-500 uppercase
+                "
               >
                 地址
               </th>
               <th
                 scope="col"
-                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                class="
+                  px-6 py-3 text-left text-xs font-medium tracking-wide
+                  text-gray-500 uppercase
+                "
               >
                 聯絡方式
               </th>
               <th
                 scope="col"
-                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                class="
+                  px-6 py-3 text-left text-xs font-medium tracking-wide
+                  text-gray-500 uppercase
+                "
               >
                 狀態
               </th>
-              <th scope="col" class="relative px-6 py-3">
+              <th
+                scope="col"
+                class="relative px-6 py-3"
+              >
                 <span class="sr-only">操作</span>
               </th>
             </tr>
@@ -134,7 +157,7 @@ async function deleteDeliveryPoint(id: string) {
               :key="point.id"
               class="hover:bg-gray-50"
             >
-              <td class="whitespace-nowrap px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <div
                     class="
@@ -142,13 +165,13 @@ async function deleteDeliveryPoint(id: string) {
                       rounded-full text-sm font-medium
                     "
                     :class="
-                      point.type === '7-11' 
+                      point.type === '7-11'
                         ? 'bg-red-100 text-red-600'
                         : point.type === '全家'
-                        ? 'bg-blue-100 text-blue-600'
-                        : point.type === '萊爾富'
-                        ? 'bg-green-100 text-green-600'
-                        : 'bg-purple-100 text-purple-600'
+                          ? 'bg-blue-100 text-blue-600'
+                          : point.type === '萊爾富'
+                            ? 'bg-green-100 text-green-600'
+                            : 'bg-purple-100 text-purple-600'
                     "
                   >
                     {{ point.type.charAt(0) }}
@@ -163,17 +186,20 @@ async function deleteDeliveryPoint(id: string) {
                   </div>
                 </div>
               </td>
-              <td class="whitespace-nowrap px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <span
-                  class="inline-flex rounded-full px-2 text-xs font-semibold leading-5"
+                  class="
+                    inline-flex rounded-full px-2 text-xs leading-5
+                    font-semibold
+                  "
                   :class="
-                    point.type === '7-11' 
+                    point.type === '7-11'
                       ? 'bg-red-100 text-red-800'
                       : point.type === '全家'
-                      ? 'bg-blue-100 text-blue-800'
-                      : point.type === '萊爾富'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-purple-100 text-purple-800'
+                        ? 'bg-blue-100 text-blue-800'
+                        : point.type === '萊爾富'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-purple-100 text-purple-800'
                   "
                 >
                   {{ point.type }}
@@ -182,7 +208,7 @@ async function deleteDeliveryPoint(id: string) {
               <td class="px-6 py-4 text-sm text-gray-900">
                 {{ point.address }}
               </td>
-              <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+              <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
                 <div v-if="point.phone">
                   📞 {{ point.phone }}
                 </div>
@@ -190,11 +216,14 @@ async function deleteDeliveryPoint(id: string) {
                   🕒 {{ point.openHours }}
                 </div>
               </td>
-              <td class="whitespace-nowrap px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <span
-                  class="inline-flex rounded-full px-2 text-xs font-semibold leading-5"
+                  class="
+                    inline-flex rounded-full px-2 text-xs leading-5
+                    font-semibold
+                  "
                   :class="
-                    point.status === 'active' 
+                    point.status === 'active'
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   "
@@ -202,7 +231,11 @@ async function deleteDeliveryPoint(id: string) {
                   {{ point.status === 'active' ? '營業中' : '暫停服務' }}
                 </span>
               </td>
-              <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+              <td
+                class="
+                  px-6 py-4 text-right text-sm font-medium whitespace-nowrap
+                "
+              >
                 <div class="flex space-x-2">
                   <NuxtLink
                     :to="`/delivery-points/${point.id}/edit`"

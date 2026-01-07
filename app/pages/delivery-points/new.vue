@@ -191,13 +191,13 @@ async function submitForm() {
                   rounded-full text-sm font-medium
                 "
                 :class="
-                  form.type === '7-11' 
+                  form.type === '7-11'
                     ? 'bg-red-100 text-red-600'
                     : form.type === '全家'
-                    ? 'bg-blue-100 text-blue-600'
-                    : form.type === '萊爾富'
-                    ? 'bg-green-100 text-green-600'
-                    : 'bg-purple-100 text-purple-600'
+                      ? 'bg-blue-100 text-blue-600'
+                      : form.type === '萊爾富'
+                        ? 'bg-green-100 text-green-600'
+                        : 'bg-purple-100 text-purple-600'
                 "
               >
                 {{ form.type.charAt(0) }}
@@ -223,9 +223,12 @@ async function submitForm() {
               </div>
               <div>
                 <span
-                  class="inline-flex rounded-full px-2 text-xs font-semibold leading-5"
+                  class="
+                    inline-flex rounded-full px-2 text-xs leading-5
+                    font-semibold
+                  "
                   :class="
-                    form.status === 'active' 
+                    form.status === 'active'
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   "

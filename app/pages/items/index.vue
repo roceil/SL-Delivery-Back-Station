@@ -180,7 +180,7 @@ function getStatusColor(status: string) {
       </div>
 
       <div
-        v-if="items.length === 0"
+        v-if="!items || items.length === 0"
         class="py-12 text-center"
       >
         <svg
