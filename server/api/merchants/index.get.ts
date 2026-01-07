@@ -1,38 +1,62 @@
 export default defineEventHandler(async (_event) => {
-  const mockMerchants = [
+  const partnerLocations = [
     {
-      id: 'merchant1',
-      name: '3C數位專賣店',
-      phone: '02-27123456',
-      address: '台北市信義區松高路11號',
-      type: 'partner',
-      createdAt: '2024-01-01T00:00:00Z',
+      id: 'donggang-pier',
+      name: '東港碼頭',
+      address: '屏東縣東港鎮朝安里朝隆路43-5號',
+      type: 'pier',
+      area: 'A',
     },
     {
-      id: 'merchant2',
-      name: '手機配件王',
-      phone: '07-3334444',
-      address: '高雄市前金區五福三路57號',
-      type: 'partner',
-      createdAt: '2024-01-02T00:00:00Z',
+      id: 'baisha-pier',
+      name: '白沙尾港',
+      address: '屏東縣琉球鄉白沙尾觀光港',
+      type: 'pier',
+      area: 'A',
     },
     {
-      id: 'merchant3',
-      name: '電子零件行',
-      phone: '04-22567890',
-      address: '台中市西區公益路68號',
-      type: 'partner',
-      createdAt: '2024-01-03T00:00:00Z',
+      id: 'dive-shop-ocean',
+      name: '小琉球海洋潛水',
+      address: '屏東縣琉球鄉中山路156號',
+      type: 'dive_shop',
+      area: 'B',
     },
     {
-      id: 'merchant4',
-      name: '臨時商家範例',
-      phone: '03-9876543',
-      address: '宜蘭縣羅東鎮中正路99號',
-      type: 'temporary',
-      createdAt: '2024-01-10T00:00:00Z',
+      id: 'dive-shop-blue',
+      name: '小琉球藍海潛水',
+      address: '屏東縣琉球鄉三民路85號',
+      type: 'dive_shop',
+      area: 'B',
+    },
+    {
+      id: 'hostel-beachfront',
+      name: '海景民宿',
+      address: '屏東縣琉球鄉忠孝路18號',
+      type: 'hostel',
+      area: 'C',
+    },
+    {
+      id: 'hostel-coral',
+      name: '珊瑚礁民宿',
+      address: '屏東縣琉球鄉和平路56號',
+      type: 'hostel',
+      area: 'C',
+    },
+    {
+      id: 'beauty-cave',
+      name: '美人洞風景區',
+      address: '屏東縣琉球鄉環島公路美人洞',
+      type: 'attraction',
+      area: 'D',
+    },
+    {
+      id: 'vase-rock',
+      name: '花瓶岩',
+      address: '屏東縣琉球鄉花瓶岩',
+      type: 'attraction',
+      area: 'D',
     },
   ]
 
-  return mockMerchants
+  return partnerLocations
 })

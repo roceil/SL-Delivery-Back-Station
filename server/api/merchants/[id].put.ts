@@ -1,14 +1,11 @@
 export default defineEventHandler(async (event) => {
+  const id = getRouterParam(event, 'id')
   const body = await readBody(event)
 
-  // Generate a unique ID based on name
-  const id = `${body.name
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-  }-${Date.now()}`
+  // In a real application, this would update the database
+  // For now, we'll just validate and return the updated merchant
 
-  const newMerchant = {
+  const updatedMerchant = {
     id,
     name: body.name,
     address: body.address,
@@ -23,9 +20,8 @@ export default defineEventHandler(async (event) => {
     voucherStock: body.voucherStock,
   }
 
-  // TODO: Save to database
-  // In a real application, this would save to a database
-  // For now, we'll just validate and return the created merchant
+  // TODO: Update in database
+  // Validate that the merchant exists before updating
 
-  return newMerchant
+  return updatedMerchant
 })

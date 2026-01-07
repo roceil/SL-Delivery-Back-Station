@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { COLOR_THEME_CLASSES, QUICK_ACTIONS, TIME_RANGE_OPTIONS } from '~/constants/dashboard'
+
 useHead({
   title: '物流管理系統 - 首頁',
 })
@@ -34,35 +36,14 @@ const stats = computed(() => [
             sm:order-0 sm:w-auto sm:border-l sm:border-gray-200 sm:pl-6
           "
         >
-          <span class="text-indigo-600">今日概覽</span>
-          <span class="text-gray-700">本週統計</span>
-          <span class="text-gray-700">本月報告</span>
-        </div>
-        <NuxtLink
-          to="/items"
-          class="
-            ml-auto flex items-center gap-x-1 rounded-md bg-indigo-600 px-3 py-2
-            text-sm font-semibold text-white shadow-sm
-            hover:bg-indigo-500
-            focus-visible:outline-2 focus-visible:outline-offset-2
-            focus-visible:outline-indigo-600
-          "
-        >
-          <svg
-            class="-ml-1.5 h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
+          <span
+            v-for="option in TIME_RANGE_OPTIONS"
+            :key="option.value"
+            :class="option.active ? 'text-indigo-600' : 'text-gray-700'"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
-            />
-          </svg>
-          物品管理
-        </NuxtLink>
+            {{ option.label }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -140,8 +121,9 @@ const stats = computed(() => [
         快速操作
       </h2>
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <!-- 物品管理 -->
         <div
+          v-for="action in QUICK_ACTIONS"
+          :key="action.id"
           class="
             group relative overflow-hidden rounded-xl bg-white p-6 shadow-sm
             ring-1 ring-gray-900/5 transition-shadow
@@ -149,19 +131,17 @@ const stats = computed(() => [
           "
         >
           <div
-            class="
-              absolute -top-6 -right-6 h-20 w-20 rounded-full bg-blue-500/10
-            "
+            class="absolute -top-6 -right-6 h-20 w-20 rounded-full"
+            :class="COLOR_THEME_CLASSES[action.colorTheme].background"
           ></div>
           <div class="relative">
             <div
-              class="
-                mb-4 flex h-12 w-12 items-center justify-center rounded-lg
-                bg-blue-50
-              "
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg"
+              :class="COLOR_THEME_CLASSES[action.colorTheme].iconBg"
             >
               <svg
-                class="h-6 w-6 text-blue-600"
+                class="h-6 w-6"
+                :class="COLOR_THEME_CLASSES[action.colorTheme].iconColor"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
@@ -170,268 +150,25 @@ const stats = computed(() => [
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+                  :d="action.iconPath"
                 />
               </svg>
             </div>
             <h3 class="mb-2 text-base font-semibold text-gray-900">
-              物品管理
+              {{ action.title }}
             </h3>
             <p class="mb-4 text-sm text-gray-500">
-              管理所有物品，查看寄送狀態
+              {{ action.description }}
             </p>
             <div class="space-y-2">
               <NuxtLink
-                to="/items/new"
-                class="
-                  block text-sm font-medium text-blue-600
-                  hover:text-blue-700
-                "
+                v-for="link in action.links"
+                :key="link.to"
+                :to="link.to"
+                class="block text-sm font-medium"
+                :class="COLOR_THEME_CLASSES[action.colorTheme].linkColor"
               >
-                → 新建物品
-              </NuxtLink>
-              <NuxtLink
-                to="/items"
-                class="
-                  block text-sm font-medium text-blue-600
-                  hover:text-blue-700
-                "
-              >
-                → 物品清單
-              </NuxtLink>
-            </div>
-          </div>
-        </div>
-
-        <!-- 行程管理 -->
-        <div
-          class="
-            group relative overflow-hidden rounded-xl bg-white p-6 shadow-sm
-            ring-1 ring-gray-900/5 transition-shadow
-            hover:shadow-lg
-          "
-        >
-          <div
-            class="
-              absolute -top-6 -right-6 h-20 w-20 rounded-full bg-purple-500/10
-            "
-          ></div>
-          <div class="relative">
-            <div
-              class="
-                mb-4 flex h-12 w-12 items-center justify-center rounded-lg
-                bg-purple-50
-              "
-            >
-              <svg
-                class="h-6 w-6 text-purple-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M8.25 18.75a1.5 1.5 0 01-3 0V6.375a1.5 1.5 0 013-3h6.75a1.5 1.5 0 013 3v12.75a1.5 1.5 0 01-3 0 1.5 1.5 0 00-3 0zm-3-3.75a1.5 1.5 0 003 0 1.5 1.5 0 003 0zm-3-7.5a1.5 1.5 0 003 0 1.5 1.5 0 003 0z"
-                />
-              </svg>
-            </div>
-            <h3 class="mb-2 text-base font-semibold text-gray-900">
-              行程管理
-            </h3>
-            <p class="mb-4 text-sm text-gray-500">
-              創建和管理配送行程
-            </p>
-            <div class="space-y-2">
-              <NuxtLink
-                to="/trips/new"
-                class="
-                  block text-sm font-medium text-purple-600
-                  hover:text-purple-700
-                "
-              >
-                → 新建行程
-              </NuxtLink>
-              <NuxtLink
-                to="/trips"
-                class="
-                  block text-sm font-medium text-purple-600
-                  hover:text-purple-700
-                "
-              >
-                → 行程總表
-              </NuxtLink>
-            </div>
-          </div>
-        </div>
-
-        <!-- 商家管理 -->
-        <div
-          class="
-            group relative overflow-hidden rounded-xl bg-white p-6 shadow-sm
-            ring-1 ring-gray-900/5 transition-shadow
-            hover:shadow-lg
-          "
-        >
-          <div
-            class="
-              absolute -top-6 -right-6 h-20 w-20 rounded-full bg-orange-500/10
-            "
-          ></div>
-          <div class="relative">
-            <div
-              class="
-                mb-4 flex h-12 w-12 items-center justify-center rounded-lg
-                bg-orange-50
-              "
-            >
-              <svg
-                class="h-6 w-6 text-orange-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.001 3.001 0 01-.621-1.82c0-.84.353-1.608.982-2.16m16.5 3.98a3.001 3.001 0 01-.621-1.82c0-.84.353-1.608.982-2.16"
-                />
-              </svg>
-            </div>
-            <h3 class="mb-2 text-base font-semibold text-gray-900">
-              商家管理
-            </h3>
-            <p class="mb-4 text-sm text-gray-500">
-              管理合作商家和臨時商家
-            </p>
-            <div class="space-y-2">
-              <NuxtLink
-                to="/merchants/new"
-                class="
-                  block text-sm font-medium text-orange-600
-                  hover:text-orange-700
-                "
-              >
-                → 新增商家
-              </NuxtLink>
-              <NuxtLink
-                to="/merchants"
-                class="
-                  block text-sm font-medium text-orange-600
-                  hover:text-orange-700
-                "
-              >
-                → 商家總覽
-              </NuxtLink>
-            </div>
-          </div>
-        </div>
-
-        <!-- 財務管理 -->
-        <div
-          class="
-            group relative overflow-hidden rounded-xl bg-white p-6 shadow-sm
-            ring-1 ring-gray-900/5 transition-shadow
-            hover:shadow-lg
-          "
-        >
-          <div
-            class="
-              absolute -top-6 -right-6 h-20 w-20 rounded-full bg-green-500/10
-            "
-          ></div>
-          <div class="relative">
-            <div
-              class="
-                mb-4 flex h-12 w-12 items-center justify-center rounded-lg
-                bg-green-50
-              "
-            >
-              <svg
-                class="h-6 w-6 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h3 class="mb-2 text-base font-semibold text-gray-900">
-              財務管理
-            </h3>
-            <p class="mb-4 text-sm text-gray-500">
-              查看收支和結帳記錄
-            </p>
-            <div class="space-y-2">
-              <NuxtLink
-                to="/billing"
-                class="
-                  block text-sm font-medium text-green-600
-                  hover:text-green-700
-                "
-              >
-                → 結帳總覽
-              </NuxtLink>
-            </div>
-          </div>
-        </div>
-
-        <!-- 快遞員管理 -->
-        <div
-          class="
-            group relative overflow-hidden rounded-xl bg-white p-6 shadow-sm
-            ring-1 ring-gray-900/5 transition-shadow
-            hover:shadow-lg
-          "
-        >
-          <div
-            class="
-              absolute -top-6 -right-6 h-20 w-20 rounded-full bg-indigo-500/10
-            "
-          ></div>
-          <div class="relative">
-            <div
-              class="
-                mb-4 flex h-12 w-12 items-center justify-center rounded-lg
-                bg-indigo-50
-              "
-            >
-              <svg
-                class="h-6 w-6 text-indigo-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-                />
-              </svg>
-            </div>
-            <h3 class="mb-2 text-base font-semibold text-gray-900">
-              快遞員管理
-            </h3>
-            <p class="mb-4 text-sm text-gray-500">
-              管理快遞員和績效統計
-            </p>
-            <div class="space-y-2">
-              <NuxtLink
-                to="/couriers"
-                class="
-                  block text-sm font-medium text-indigo-600
-                  hover:text-indigo-700
-                "
-              >
-                → 快遞員總覽
+                → {{ link.label }}
               </NuxtLink>
             </div>
           </div>

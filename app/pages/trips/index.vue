@@ -59,34 +59,40 @@ function copyTrackingUrl(url: string) {
 
 async function viewTripMap(tripId: string) {
   try {
-    // 獲取行程的物品信息
-    const tripItems = await $fetch(`/api/trips/${tripId}/items`)
+    // 獲取行程的訂單資訊
+    const tripOrders = await $fetch(`/api/trips/${tripId}/orders`)
 
-    if (tripItems && tripItems.length > 0) {
-      // 收集所有地址
-      const allAddresses: string[] = []
-
-      // 添加所有寄件地址
-      tripItems.forEach((item: any) => {
-        if (!allAddresses.includes(item.senderAddress)) {
-          allAddresses.push(item.senderAddress)
-        }
-      })
-
-      // 添加所有收件地址
-      tripItems.forEach((item: any) => {
-        if (!allAddresses.includes(item.receiverAddress)) {
-          allAddresses.push(item.receiverAddress)
-        }
-      })
-
-      const waypoints = allAddresses.map(addr => encodeURIComponent(addr)).join('/')
-      const mapUrl = `https://www.google.com/maps/dir/${waypoints}`
-      window.open(mapUrl, '_blank')
+    if (!tripOrders || tripOrders.length === 0) {
+      // eslint-disable-next-line no-alert
+      alert('此行程沒有訂單')
+      return
     }
+
+    // 收集所有地址
+    const allAddresses: string[] = []
+
+    // 添加所有起點地址
+    tripOrders.forEach((order: any) => {
+      if (!allAddresses.includes(order.pickupLocation.address)) {
+        allAddresses.push(order.pickupLocation.address)
+      }
+    })
+
+    // 添加所有終點地址
+    tripOrders.forEach((order: any) => {
+      if (!allAddresses.includes(order.deliveryLocation.address)) {
+        allAddresses.push(order.deliveryLocation.address)
+      }
+    })
+
+    const waypoints = allAddresses.map(addr => encodeURIComponent(addr)).join('/')
+    const mapUrl = `https://www.google.com/maps/dir/${waypoints}`
+    window.open(mapUrl, '_blank')
   }
   catch (error) {
     console.error('無法獲取行程地圖:', error)
+    // eslint-disable-next-line no-alert
+    alert('無法開啟地圖，請稍後再試')
   }
 }
 </script>
@@ -114,7 +120,7 @@ async function viewTripMap(tripId: string) {
 
       <div
         class="
-          ring-opacity-5 overflow-hidden shadow ring-1 ring-black
+          overflow-hidden shadow ring-1 ring-black ring-opacity-5
           md:rounded-lg
         "
       >
@@ -146,7 +152,7 @@ async function viewTripMap(tripId: string) {
                   text-gray-500 uppercase
                 "
               >
-                物品數量
+                訂單資訊
               </th>
               <th
                 scope="col"
@@ -199,8 +205,19 @@ async function viewTripMap(tripId: string) {
               <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
                 {{ getCourierName(trip.courierId) }}
               </td>
-              <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
-                {{ trip.itemIds.length }} 個物品
+              <td class="px-6 py-4 text-sm text-gray-900">
+                <div class="space-y-1">
+                  <div>{{ trip.orderCount }} 個訂單</div>
+                  <div class="text-xs text-gray-500">
+                    共 {{ trip.totalLuggage }} 件行李
+                  </div>
+                  <div
+                    v-if="trip.areas && trip.areas.length > 0"
+                    class="text-xs text-gray-500"
+                  >
+                    區域: {{ trip.areas.join(', ') }}
+                  </div>
+                </div>
               </td>
               <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
                 {{ new Date(trip.scheduledDate).toLocaleDateString('zh-TW') }}

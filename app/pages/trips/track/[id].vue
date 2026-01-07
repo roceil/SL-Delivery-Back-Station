@@ -7,49 +7,53 @@ useHead({
 })
 
 const { data: trip } = await useFetch(`/api/trips/${tripId}`)
-const { data: tripItems } = await useFetch(`/api/trips/${tripId}/items`)
+const { data: tripOrders } = await useFetch(`/api/trips/${tripId}/orders`)
 
-const completedItems = ref<string[]>([])
+const completedOrders = ref<string[]>([])
 
-function toggleItemCompletion(itemId: string) {
-  const index = completedItems.value.indexOf(itemId)
+function toggleOrderCompletion(orderId: string) {
+  const index = completedOrders.value.indexOf(orderId)
   if (index > -1) {
-    completedItems.value.splice(index, 1)
+    completedOrders.value.splice(index, 1)
   }
   else {
-    completedItems.value.push(itemId)
+    completedOrders.value.push(orderId)
   }
 }
 
 function openMap() {
-  if (tripItems.value && tripItems.value.length > 0) {
-    // 優化路線：先收集所有地址，然後規劃最佳路線
-    const allAddresses: string[] = []
-
-    // 添加所有寄件地址
-    tripItems.value.forEach((item: any) => {
-      if (!allAddresses.includes(item.senderAddress)) {
-        allAddresses.push(item.senderAddress)
-      }
-    })
-
-    // 添加所有收件地址
-    tripItems.value.forEach((item: any) => {
-      if (!allAddresses.includes(item.receiverAddress)) {
-        allAddresses.push(item.receiverAddress)
-      }
-    })
-
-    const waypoints = allAddresses.map(addr => encodeURIComponent(addr)).join('/')
-    const mapUrl = `https://www.google.com/maps/dir/${waypoints}`
-    window.open(mapUrl, '_blank')
+  if (!tripOrders.value || tripOrders.value.length === 0) {
+    // eslint-disable-next-line no-alert
+    alert('此行程沒有訂單')
+    return
   }
+
+  // 收集所有地址
+  const allAddresses: string[] = []
+
+  // 添加所有起點地址
+  tripOrders.value.forEach((order: any) => {
+    if (!allAddresses.includes(order.pickupLocation.address)) {
+      allAddresses.push(order.pickupLocation.address)
+    }
+  })
+
+  // 添加所有終點地址
+  tripOrders.value.forEach((order: any) => {
+    if (!allAddresses.includes(order.deliveryLocation.address)) {
+      allAddresses.push(order.deliveryLocation.address)
+    }
+  })
+
+  const waypoints = allAddresses.map(addr => encodeURIComponent(addr)).join('/')
+  const mapUrl = `https://www.google.com/maps/dir/${waypoints}`
+  window.open(mapUrl, '_blank')
 }
 
 async function completeTrip() {
-  if (!tripItems.value || completedItems.value.length !== tripItems.value.length) {
+  if (!tripOrders.value || completedOrders.value.length !== tripOrders.value.length) {
     // eslint-disable-next-line no-alert
-    alert('請確認所有物品都已完成配送')
+    alert('請確認所有訂單都已完成配送')
     return
   }
 
@@ -60,15 +64,29 @@ async function completeTrip() {
 
     // eslint-disable-next-line no-alert
     alert('行程已完成！')
-    await navigateTo('/couriers')
+    await navigateTo('/trips')
   }
   catch (error) {
     console.error('完成行程失敗:', error)
   }
 }
 
-const remainingItems = computed(() => {
-  return (tripItems.value?.length || 0) - completedItems.value.length
+const remainingOrders = computed(() => {
+  return (tripOrders.value?.length || 0) - completedOrders.value.length
+})
+
+const totalLuggage = computed(() => {
+  if (!tripOrders.value)
+    return 0
+  return tripOrders.value.reduce((sum: number, order: any) => sum + order.luggageCount, 0)
+})
+
+const completedLuggage = computed(() => {
+  if (!tripOrders.value)
+    return 0
+  return tripOrders.value
+    .filter((order: any) => completedOrders.value.includes(order.id))
+    .reduce((sum: number, order: any) => sum + order.luggageCount, 0)
 })
 </script>
 
@@ -86,10 +104,10 @@ const remainingItems = computed(() => {
         </div>
         <div class="text-right">
           <div class="text-sm text-gray-500">
-            剩餘物品
+            剩餘訂單
           </div>
           <div class="text-2xl font-bold text-blue-600">
-            {{ remainingItems }}
+            {{ remainingOrders }}
           </div>
         </div>
       </div>
@@ -101,8 +119,9 @@ const remainingItems = computed(() => {
           </h3>
           <div class="space-y-1 text-sm text-blue-800">
             <div>預計日期: {{ trip?.scheduledDate ? new Date(trip.scheduledDate).toLocaleDateString('zh-TW') : 'N/A' }}</div>
-            <div>總物品數: {{ tripItems?.length || 0 }}</div>
-            <div>已完成: {{ completedItems.length }}</div>
+            <div>總訂單數: {{ tripOrders?.length || 0 }}</div>
+            <div>總行李數: {{ totalLuggage }} 件</div>
+            <div>已完成: {{ completedOrders.length }} 訂單 ({{ completedLuggage }} 件)</div>
           </div>
         </div>
 
@@ -140,12 +159,12 @@ const remainingItems = computed(() => {
               打開 Google 地圖導航
             </button>
             <button
-              :disabled="remainingItems > 0"
+              :disabled="remainingOrders > 0"
               class="
                 w-full text-left text-sm
                 disabled:cursor-not-allowed disabled:text-gray-400
               "
-              :class="remainingItems === 0 ? `
+              :class="remainingOrders === 0 ? `
                 text-green-600
                 hover:text-green-800
               ` : ''"
@@ -163,69 +182,77 @@ const remainingItems = computed(() => {
           <div class="space-y-2">
             <div class="flex justify-between text-sm text-purple-800">
               <span>完成率</span>
-              <span>{{ Math.round((completedItems.length / (tripItems?.length || 1)) * 100) }}%</span>
+              <span>{{ Math.round((completedOrders.length / (tripOrders?.length || 1)) * 100) }}%</span>
             </div>
             <div class="h-2 w-full rounded-full bg-purple-200">
               <div
                 class="
                   h-2 rounded-full bg-purple-600 transition-all duration-300
                 "
-                :style="{ width: `${(completedItems.length / (tripItems?.length || 1)) * 100}%` }"
+                :style="{ width: `${(completedOrders.length / (tripOrders?.length || 1)) * 100}%` }"
               ></div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 路線地圖 -->
-      <div class="border-t pt-6">
-        <TripMap
-          v-if="tripItems"
-          :trip-items="tripItems"
-          :trip-name="trip?.name"
-        />
-      </div>
-
       <div class="border-t pt-6">
         <h3 class="mb-4 text-lg font-medium text-gray-900">
-          物品清單
+          訂單清單
         </h3>
 
-        <div class="space-y-4">
+        <div
+          v-if="!tripOrders || tripOrders.length === 0"
+          class="py-12 text-center text-gray-500"
+        >
+          此行程沒有訂單
+        </div>
+
+        <div
+          v-else
+          class="space-y-4"
+        >
           <div
-            v-for="item in tripItems || []"
-            :key="item.id"
+            v-for="order in tripOrders"
+            :key="order.id"
             class="flex items-start space-x-3 rounded-lg border p-4"
-            :class="completedItems.includes(item.id) ? `
+            :class="completedOrders.includes(order.id) ? `
               border-green-200 bg-green-50
             ` : `hover:bg-gray-50`"
           >
             <input
-              :id="item.id"
+              :id="order.id"
               type="checkbox"
-              :checked="completedItems.includes(item.id)"
+              :checked="completedOrders.includes(order.id)"
               class="mt-1 text-green-600"
-              @change="toggleItemCompletion(item.id)"
+              @change="toggleOrderCompletion(order.id)"
             >
             <div class="flex-1">
               <div class="flex justify-between">
-                <div>
+                <div class="flex-1">
                   <h4 class="text-sm font-medium text-gray-900">
-                    {{ item.name }}
+                    {{ order.lineName }} - {{ order.phone }}
                   </h4>
                   <p class="text-sm text-gray-500">
-                    {{ item.description }}
+                    收貨時間: {{ order.pickupTime }}
                   </p>
                   <p class="mt-1 text-xs text-gray-400">
-                    {{ item.dimensions.length }}×{{ item.dimensions.width }}×{{ item.dimensions.height }} cm,
-                    {{ item.weight }} kg
+                    行李數量: {{ order.luggageCount }} 件
                   </p>
                 </div>
-                <div
-                  v-if="completedItems.includes(item.id)"
-                  class="text-green-600"
-                >
-                  ✓ 已完成
+                <div class="text-right">
+                  <div
+                    v-if="completedOrders.includes(order.id)"
+                    class="text-green-600"
+                  >
+                    ✓ 已完成
+                  </div>
+                  <div
+                    v-else
+                    class="text-xs text-gray-500"
+                  >
+                    待配送
+                  </div>
                 </div>
               </div>
 
@@ -236,10 +263,19 @@ const remainingItems = computed(() => {
                       text-xs font-medium tracking-wider text-gray-500 uppercase
                     "
                   >
-                    寄件地址
+                    起點
                   </div>
-                  <div class="text-sm text-gray-900">
-                    {{ item.senderAddress }}
+                  <div class="text-sm font-medium text-gray-900">
+                    {{ order.pickupLocation.name }}
+                  </div>
+                  <div class="text-xs text-gray-500">
+                    {{ order.pickupLocation.address }}
+                  </div>
+                  <div
+                    v-if="order.pickupLocation.area"
+                    class="mt-1 text-xs text-gray-400"
+                  >
+                    區域: {{ order.pickupLocation.area }}
                   </div>
                 </div>
                 <div class="rounded border bg-white p-3">
@@ -248,11 +284,36 @@ const remainingItems = computed(() => {
                       text-xs font-medium tracking-wider text-gray-500 uppercase
                     "
                   >
-                    收件地址
+                    終點
                   </div>
-                  <div class="text-sm text-gray-900">
-                    {{ item.receiverAddress }}
+                  <div class="text-sm font-medium text-gray-900">
+                    {{ order.deliveryLocation.name }}
                   </div>
+                  <div class="text-xs text-gray-500">
+                    {{ order.deliveryLocation.address }}
+                  </div>
+                  <div
+                    v-if="order.deliveryLocation.area"
+                    class="mt-1 text-xs text-gray-400"
+                  >
+                    區域: {{ order.deliveryLocation.area }}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="order.notes"
+                class="mt-3 rounded border bg-yellow-50 p-3"
+              >
+                <div
+                  class="
+                    text-xs font-medium tracking-wider text-gray-500 uppercase
+                  "
+                >
+                  備註
+                </div>
+                <div class="text-sm text-gray-900">
+                  {{ order.notes }}
                 </div>
               </div>
             </div>
@@ -269,7 +330,7 @@ const remainingItems = computed(() => {
         </NuxtLink>
 
         <button
-          :disabled="remainingItems > 0"
+          :disabled="remainingOrders > 0"
           class="
             rounded-md border border-transparent bg-green-600 px-6 py-2 text-sm
             font-medium text-white
@@ -280,7 +341,7 @@ const remainingItems = computed(() => {
           "
           @click="completeTrip"
         >
-          完成行程 ({{ remainingItems }} 剩餘)
+          完成行程 ({{ remainingOrders }} 剩餘)
         </button>
       </div>
     </div>

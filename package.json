@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@nuxt/fonts": "^0.12.1",
+    "qrcode.vue": "^3.6.0",
     "tailwindcss": "^4.1.18"
   }
 }

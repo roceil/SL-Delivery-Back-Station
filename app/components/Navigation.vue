@@ -1,3 +1,24 @@
+<script setup lang="ts">
+const route = useRoute()
+
+const navItems = [
+  { to: '/', label: '首頁' },
+  { to: '/orders', label: '訂單總覽' },
+  { to: '/trips', label: '行程管理' },
+  { to: '/merchants', label: '商家管理' },
+  // { to: '/delivery-points', label: '收件地管理' },
+  { to: '/billing', label: '結帳總覽' },
+  { to: '/couriers', label: '快遞員總覽' },
+]
+
+function isActive(path: string) {
+  if (path === '/') {
+    return route.path === '/'
+  }
+  return route.path.startsWith(path)
+}
+</script>
+
 <template>
   <nav class="border-b bg-white shadow-lg">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -10,81 +31,23 @@
           </div>
           <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
             <NuxtLink
-              to="/"
+              v-for="item in navItems"
+              :key="item.to"
+              :to="item.to"
               class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
+                inline-flex items-center border-b-2 px-1 pt-1 text-sm
+                font-medium
               "
-              active-class="border-blue-500 text-gray-900"
+              :class="[
+                isActive(item.to)
+                  ? 'border-blue-500 text-gray-900'
+                  : `
+                    border-transparent text-gray-500
+                    hover:border-gray-300 hover:text-gray-700
+                  `,
+              ]"
             >
-              首頁
-            </NuxtLink>
-            <NuxtLink
-              to="/items"
-              class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
-              "
-              active-class="border-blue-500 text-gray-900"
-            >
-              物品管理
-            </NuxtLink>
-            <NuxtLink
-              to="/trips"
-              class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
-              "
-              active-class="border-blue-500 text-gray-900"
-            >
-              行程管理
-            </NuxtLink>
-            <NuxtLink
-              to="/merchants"
-              class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
-              "
-              active-class="border-blue-500 text-gray-900"
-            >
-              商家管理
-            </NuxtLink>
-            <NuxtLink
-              to="/delivery-points"
-              class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
-              "
-              active-class="border-blue-500 text-gray-900"
-            >
-              收件地管理
-            </NuxtLink>
-            <NuxtLink
-              to="/billing"
-              class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
-              "
-              active-class="border-blue-500 text-gray-900"
-            >
-              結帳總覽
-            </NuxtLink>
-            <NuxtLink
-              to="/couriers"
-              class="
-                inline-flex items-center border-b-2 border-transparent px-1 pt-1
-                text-sm font-medium text-gray-500
-                hover:border-gray-300 hover:text-gray-700
-              "
-              active-class="border-blue-500 text-gray-900"
-            >
-              快遞員總覽
+              {{ item.label }}
             </NuxtLink>
           </div>
         </div>

@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
     name: body.name,
     description: body.description,
     courierId: body.courierId,
-    itemIds: body.selectedItems,
+    orderIds: body.selectedOrders, // 改為訂單 ID
     scheduledDate: body.scheduledDate,
     status: 'pending',
     createdAt: new Date().toISOString(),

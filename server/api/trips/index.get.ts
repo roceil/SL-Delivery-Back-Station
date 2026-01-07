@@ -1,47 +1,89 @@
 export default defineEventHandler(async (_event) => {
+  // Mock 訂單資料
+  const mockOrders = [
+    {
+      id: 'order2',
+      luggageCount: 1,
+      deliveryLocation: { area: 'B' },
+    },
+    {
+      id: 'order3',
+      luggageCount: 3,
+      deliveryLocation: { area: 'C' },
+    },
+    {
+      id: 'order4',
+      luggageCount: 2,
+      deliveryLocation: { area: 'D' },
+    },
+    {
+      id: 'order5',
+      luggageCount: 1,
+      deliveryLocation: { area: 'C' },
+    },
+  ]
+
   const mockTrips = [
     {
       id: 'trip1',
-      name: '台北-台中路線',
-      description: '3C產品配送',
+      name: '2026-01-07-10-30',
+      description: '小琉球行李運送 - 區域 B, C',
       courierId: 'courier1',
-      itemIds: ['item2'],
-      scheduledDate: '2024-01-20',
+      orderIds: ['order2', 'order3'],
+      scheduledDate: '2026-01-07',
       status: 'dispatched',
-      createdAt: '2024-01-15T08:00:00Z',
-      dispatchedAt: '2024-01-16T09:00:00Z',
+      createdAt: '2026-01-07T10:30:00Z',
+      dispatchedAt: '2026-01-07T11:00:00Z',
       completedAt: null,
       // @ts-expect-error - process is available in Nitro runtime
       trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/trip1`,
     },
     {
       id: 'trip2',
-      name: '桃園-新竹路線',
-      description: '書籍配送',
+      name: '2026-01-07-14-15',
+      description: '小琉球行李運送 - 區域 C, D',
       courierId: 'courier2',
-      itemIds: ['item3'],
-      scheduledDate: '2024-01-18',
+      orderIds: ['order4', 'order5'],
+      scheduledDate: '2026-01-07',
       status: 'completed',
-      createdAt: '2024-01-13T10:00:00Z',
-      dispatchedAt: '2024-01-14T08:30:00Z',
-      completedAt: '2024-01-18T16:20:00Z',
+      createdAt: '2026-01-07T14:15:00Z',
+      dispatchedAt: '2026-01-07T14:30:00Z',
+      completedAt: '2026-01-07T17:20:00Z',
       // @ts-expect-error - process is available in Nitro runtime
       trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/trip2`,
     },
     {
       id: 'trip3',
-      name: '高雄市區配送',
-      description: '多點配送路線',
+      name: '2026-01-08-09-00',
+      description: '小琉球行李運送 - 區域 B',
       courierId: 'courier3',
-      itemIds: ['item6', 'item7'],
-      scheduledDate: '2024-01-22',
+      orderIds: [],
+      scheduledDate: '2026-01-08',
       status: 'pending',
-      createdAt: '2024-01-16T14:30:00Z',
+      createdAt: '2026-01-07T16:00:00Z',
       dispatchedAt: null,
       completedAt: null,
       trackingUrl: null,
     },
   ]
 
-  return mockTrips
+  // 為每個行程添加統計資訊
+  const tripsWithStats = mockTrips.map((trip) => {
+    const tripOrders = mockOrders.filter(order => trip.orderIds.includes(order.id))
+
+    // 計算總行李數
+    const totalLuggage = tripOrders.reduce((sum, order) => sum + order.luggageCount, 0)
+
+    // 獲取所有區域（去重）
+    const areas = [...new Set(tripOrders.map(order => order.deliveryLocation.area))].sort()
+
+    return {
+      ...trip,
+      orderCount: trip.orderIds.length,
+      totalLuggage,
+      areas,
+    }
+  })
+
+  return tripsWithStats
 })

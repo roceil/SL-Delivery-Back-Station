@@ -1,41 +1,62 @@
 <script lang="ts" setup>
 useHead({
-  title: '商家總覽 - 物流管理系統',
+  title: '合作地點 - 行李運送系統',
 })
 
-const { data: merchants, refresh } = await useFetch('/api/merchants')
+const { data: locations } = await useFetch('/api/merchants')
+
+const locationTypes = [
+  { value: 'all', label: '全部地點' },
+  { value: 'pier', label: '碼頭' },
+  { value: 'dive_shop', label: '潛水店' },
+  { value: 'hostel', label: '民宿' },
+  { value: 'attraction', label: '景點' },
+]
+
+const selectedType = ref('all')
+
+const filteredLocations = computed(() => {
+  if (!locations.value)
+    return []
+  if (selectedType.value === 'all')
+    return locations.value
+  return locations.value.filter(loc => loc.type === selectedType.value)
+})
 
 function getTypeText(type: string) {
   const typeMap = {
-    partner: '合作商家',
-    temporary: '臨時商家',
+    pier: '碼頭',
+    dive_shop: '潛水店',
+    hostel: '民宿',
+    attraction: '景點',
   }
   return typeMap[type as keyof typeof typeMap] || type
 }
 
 function getTypeColor(type: string) {
   const colorMap = {
-    partner: 'bg-blue-100 text-blue-800',
-    temporary: 'bg-orange-100 text-orange-800',
+    pier: 'bg-blue-100 text-blue-800',
+    dive_shop: 'bg-cyan-100 text-cyan-800',
+    hostel: 'bg-purple-100 text-purple-800',
+    attraction: 'bg-green-100 text-green-800',
   }
   return colorMap[type as keyof typeof colorMap] || 'bg-gray-100 text-gray-800'
 }
 
-async function deleteMerchant(merchantId: string) {
-  // eslint-disable-next-line no-alert
-  if (!confirm('確定要刪除這個商家嗎？')) {
-    return
+function getTypeIcon(type: string) {
+  const iconMap = {
+    pier: '🚢',
+    dive_shop: '🤿',
+    hostel: '🏠',
+    attraction: '🏝️',
   }
+  return iconMap[type as keyof typeof iconMap] || '📍'
+}
 
-  try {
-    await $fetch(`/api/merchants/${merchantId}`, {
-      method: 'delete' as any,
-    })
-    await refresh()
-  }
-  catch (error) {
-    console.error('刪除商家失敗:', error)
-  }
+const router = useRouter()
+
+function goToLocationDetail(locationId: string) {
+  router.push(`/merchants/${locationId}`)
 }
 </script>
 
@@ -43,112 +64,121 @@ async function deleteMerchant(merchantId: string) {
   <div class="rounded-lg bg-white shadow">
     <div class="px-4 py-5 sm:p-6">
       <div class="mb-6 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-900">
-          商家總覽
-        </h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">
+            商家總覽
+          </h1>
+          <p class="mt-1 text-sm text-gray-500">
+            小琉球行李運送合作地點總覽
+          </p>
+        </div>
         <NuxtLink
           to="/merchants/new"
           class="
             rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm
-            font-medium text-white
+            font-medium text-white shadow-sm
             hover:bg-blue-700
             focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
             focus:outline-none
           "
         >
-          新增商家
+          ➕ 新增地點
         </NuxtLink>
       </div>
 
-      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <!-- Filter Tabs -->
+      <div class="mb-6 border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+          <button
+            v-for="type in locationTypes"
+            :key="type.value"
+            class="border-b-2 px-1 py-4 text-sm font-medium whitespace-nowrap"
+            :class="[
+              selectedType === type.value
+                ? 'border-blue-500 text-blue-600'
+                : `
+                  border-transparent text-gray-500
+                  hover:border-gray-300 hover:text-gray-700
+                `,
+            ]"
+            @click="selectedType = type.value"
+          >
+            {{ type.label }}
+            <span
+              v-if="type.value === 'all'"
+              class="
+                ml-2 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium
+                text-gray-600
+              "
+            >
+              {{ locations?.length || 0 }}
+            </span>
+            <span
+              v-else
+              class="
+                ml-2 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium
+                text-gray-600
+              "
+            >
+              {{ locations?.filter(l => l.type === type.value).length || 0 }}
+            </span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Location Cards -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div
-          v-for="merchant in merchants"
-          :key="merchant.id"
+          v-for="location in filteredLocations"
+          :key="location.id"
           class="
-            rounded-lg border border-gray-200 bg-white p-6 transition-shadow
+            cursor-pointer rounded-lg border border-gray-200 bg-white p-5
+            transition-all
             hover:shadow-md
           "
+          @click="goToLocationDetail(location.id)"
         >
-          <div class="mb-4 flex items-start justify-between">
-            <div>
-              <h3 class="text-lg font-medium text-gray-900">
-                {{ merchant.name }}
-              </h3>
-              <p class="text-sm text-gray-500">
-                {{ merchant.phone }}
+          <div class="flex items-start gap-3">
+            <div class="flex-shrink-0 text-3xl">
+              {{ getTypeIcon(location.type) }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="mb-2 flex items-start justify-between">
+                <h3 class="text-base font-semibold text-gray-900">
+                  {{ location.name }}
+                </h3>
+                <span
+                  :class="getTypeColor(location.type)"
+                  class="
+                    ml-2 inline-flex flex-shrink-0 rounded-full px-2 py-0.5
+                    text-xs font-medium
+                  "
+                >
+                  {{ getTypeText(location.type) }}
+                </span>
+              </div>
+              <p class="text-sm text-gray-600">
+                {{ location.address }}
               </p>
             </div>
-            <span
-              :class="getTypeColor(merchant.type)"
-              class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-            >
-              {{ getTypeText(merchant.type) }}
-            </span>
-          </div>
-
-          <div class="space-y-2">
-            <div class="text-sm text-gray-700">
-              <span class="font-medium">地址:</span> {{ merchant.address }}
-            </div>
-            <div class="text-sm text-gray-500">
-              加入時間: {{ new Date(merchant.createdAt).toLocaleDateString('zh-TW') }}
-            </div>
-          </div>
-
-          <div class="mt-4 flex justify-end space-x-2 border-t pt-4">
-            <NuxtLink
-              :to="`/merchants/${merchant.id}/edit`"
-              class="text-sm text-blue-600 hover:text-blue-800"
-            >
-              編輯
-            </NuxtLink>
-            <button
-              class="text-sm text-red-600 hover:text-red-800"
-              @click="deleteMerchant(merchant.id)"
-            >
-              刪除
-            </button>
           </div>
         </div>
       </div>
 
+      <!-- Empty State -->
       <div
-        v-if="!merchants || merchants.length === 0"
+        v-if="!filteredLocations || filteredLocations.length === 0"
         class="py-12 text-center"
       >
-        <svg
-          class="mx-auto h-12 w-12 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-          />
-        </svg>
+        <div class="text-6xl">
+          📍
+        </div>
         <h3 class="mt-2 text-sm font-medium text-gray-900">
-          沒有商家
+          沒有符合的地點
         </h3>
         <p class="mt-1 text-sm text-gray-500">
-          開始新增您的第一個商家。
+          請選擇其他類別查看合作地點
         </p>
-        <div class="mt-6">
-          <NuxtLink
-            to="/merchants/new"
-            class="
-              inline-flex items-center rounded-md border border-transparent
-              bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm
-              hover:bg-blue-700
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-          >
-            新增商家
-          </NuxtLink>
-        </div>
       </div>
     </div>
   </div>

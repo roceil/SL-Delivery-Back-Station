@@ -1,26 +1,11 @@
 <script lang="ts" setup>
-useHead({
-  title: '新增合作地點 - 行李運送系統',
-})
-
+const route = useRoute()
 const router = useRouter()
+const locationId = route.params.id as string
 
-const form = ref({
-  name: '',
-  address: '',
-  type: 'pier',
-  area: 'A',
-  phone: '',
-  openingHours: '',
-  description: '',
-  features: [] as string[],
-  notes: '',
-  partnerSince: new Date().toISOString().split('T')[0],
-  voucherStock: 100,
+useHead({
+  title: '編輯合作地點 - 行李運送系統',
 })
-
-const newFeature = ref('')
-const isSubmitting = ref(false)
 
 const locationTypes = [
   { value: 'pier', label: '碼頭', icon: '🚢' },
@@ -28,6 +13,34 @@ const locationTypes = [
   { value: 'hostel', label: '民宿', icon: '🏠' },
   { value: 'attraction', label: '景點', icon: '🏝️' },
 ]
+
+// Fetch existing location data
+const { data: location, error } = await useFetch(`/api/merchants/${locationId}`)
+
+if (error.value || !location.value) {
+  throw createError({
+    statusCode: 404,
+    message: '找不到此合作地點',
+  })
+}
+
+// Initialize form with existing data
+const form = ref({
+  name: location.value.name,
+  address: location.value.address,
+  type: location.value.type,
+  area: location.value.area,
+  phone: location.value.phone,
+  openingHours: location.value.openingHours,
+  description: location.value.description,
+  features: [...location.value.features],
+  notes: location.value.notes,
+  partnerSince: location.value.partnerSince,
+  voucherStock: location.value.voucherStock,
+})
+
+const newFeature = ref('')
+const isSubmitting = ref(false)
 
 function addFeature() {
   if (!newFeature.value.trim())
@@ -48,16 +61,16 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
-    await $fetch('/api/merchants', {
-      method: 'POST',
+    await $fetch(`/api/merchants/${locationId}`, {
+      method: 'PUT',
       body: form.value,
     })
 
-    router.push('/merchants')
+    router.push(`/merchants/${locationId}`)
   }
   catch (error) {
-    console.error('新增地點失敗:', error)
-    alert('新增地點失敗，請稍後再試')
+    console.error('更新地點失敗:', error)
+    alert('更新地點失敗，請稍後再試')
   }
   finally {
     isSubmitting.value = false
@@ -68,9 +81,23 @@ async function handleSubmit() {
 <template>
   <div class="rounded-lg bg-white shadow">
     <div class="px-4 py-5 sm:p-6">
-      <h1 class="mb-6 text-2xl font-bold text-gray-900">
-        新增商家
-      </h1>
+      <div class="mb-6 flex items-center gap-4">
+        <NuxtLink
+          :to="`/merchants/${locationId}`"
+          class="
+            rounded-md border border-gray-300 bg-white px-3 py-2 text-sm
+            font-medium text-gray-700 shadow-sm
+            hover:bg-gray-50
+            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            focus:outline-none
+          "
+        >
+          ← 返回
+        </NuxtLink>
+        <h1 class="text-2xl font-bold text-gray-900">
+          編輯地點
+        </h1>
+      </div>
 
       <form
         class="space-y-6"
@@ -337,7 +364,7 @@ async function handleSubmit() {
 
         <div class="flex justify-end gap-3 border-t pt-6">
           <NuxtLink
-            to="/merchants"
+            :to="`/merchants/${locationId}`"
             class="
               rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
               font-medium text-gray-700 shadow-sm
@@ -360,7 +387,7 @@ async function handleSubmit() {
               disabled:opacity-50
             "
           >
-            {{ isSubmitting ? '新增中...' : '新增地點' }}
+            {{ isSubmitting ? '更新中...' : '更新地點' }}
           </button>
         </div>
       </form>
