@@ -1,0 +1,94 @@
+<template>
+  <nav class="border-b bg-white shadow-lg">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex h-16 justify-between">
+        <div class="flex">
+          <div class="flex flex-shrink-0 items-center">
+            <h1 class="text-xl font-bold text-gray-900">
+              物流管理系統
+            </h1>
+          </div>
+          <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <NuxtLink
+              to="/"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              首頁
+            </NuxtLink>
+            <NuxtLink
+              to="/items"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              物品管理
+            </NuxtLink>
+            <NuxtLink
+              to="/trips"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              行程管理
+            </NuxtLink>
+            <NuxtLink
+              to="/merchants"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              商家管理
+            </NuxtLink>
+            <NuxtLink
+              to="/delivery-points"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              收件地管理
+            </NuxtLink>
+            <NuxtLink
+              to="/billing"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              結帳總覽
+            </NuxtLink>
+            <NuxtLink
+              to="/couriers"
+              class="
+                inline-flex items-center border-b-2 border-transparent px-1 pt-1
+                text-sm font-medium text-gray-500
+                hover:border-gray-300 hover:text-gray-700
+              "
+              active-class="border-blue-500 text-gray-900"
+            >
+              快遞員總覽
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+</template>

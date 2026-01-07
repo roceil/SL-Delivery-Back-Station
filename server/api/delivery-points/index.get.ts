@@ -1,0 +1,73 @@
+export default defineEventHandler(async (event) => {
+  // 模擬收件地資料
+  const deliveryPoints = [
+    {
+      id: '1',
+      name: '台北車站門市',
+      type: '7-11',
+      storeId: 'TW001',
+      address: '台北市中正區北平西路3號1樓',
+      phone: '02-2312-1234',
+      openHours: '06:00-24:00',
+      status: 'active',
+      createdAt: '2024-01-15T10:00:00Z',
+    },
+    {
+      id: '2',
+      name: '信義威秀店',
+      type: '全家',
+      storeId: 'FM456',
+      address: '台北市信義區松壽路20號B2',
+      phone: '02-8789-5678',
+      openHours: '24小時',
+      status: 'active',
+      createdAt: '2024-01-16T14:30:00Z',
+    },
+    {
+      id: '3',
+      name: '西門町店',
+      type: '萊爾富',
+      storeId: 'LF789',
+      address: '台北市萬華區成都路10號',
+      phone: '02-2370-9999',
+      openHours: '07:00-23:00',
+      status: 'active',
+      createdAt: '2024-01-17T09:15:00Z',
+    },
+    {
+      id: '4',
+      name: '東區地下街店',
+      type: '7-11',
+      storeId: 'TW002',
+      address: '台北市大安區忠孝東路四段地下街',
+      phone: '02-2771-2345',
+      openHours: '08:00-22:00',
+      status: 'inactive',
+      createdAt: '2024-01-18T16:45:00Z',
+    },
+    {
+      id: '5',
+      name: '松山機場店',
+      type: '全家',
+      storeId: 'FM123',
+      address: '台北市松山區敦化北路340-9號',
+      phone: '02-2712-3456',
+      openHours: '05:00-01:00',
+      status: 'active',
+      createdAt: '2024-01-19T11:20:00Z',
+    },
+    {
+      id: '6',
+      name: '師大夜市店',
+      type: 'OK超商',
+      storeId: 'OK333',
+      address: '台北市大安區師大路39巷15號',
+      phone: '02-2363-7777',
+      openHours: '07:00-23:30',
+      status: 'active',
+      createdAt: '2024-01-20T13:10:00Z',
+    },
+  ]
+
+  return deliveryPoints
+})
