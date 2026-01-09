@@ -89,7 +89,7 @@ export default defineEventHandler(async (event) => {
   if (netOrderIds.length > 0) {
     let netOrdersQuery = supabase
       .from('net_orders')
-      .select('id, platform_type, departure_date, quantity, contacts')
+      .select('id, platform_type, departure_date, receive_time, quantity, contacts')
       .in('id', netOrderIds)
 
     // 如果有提供日期，則加上日期篩選
@@ -159,6 +159,7 @@ export default defineEventHandler(async (event) => {
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
       deliveryDate = netOrder.departure_date
+      pickupTime = netOrder.receive_time || '-'
       luggageCount = netOrder.quantity || 0
     }
 

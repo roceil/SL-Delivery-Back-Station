@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
       id,
       platform_id,
       platform_type,
+      voucher_id,
       status,
       notes,
       created_at,
@@ -81,7 +82,7 @@ export default defineEventHandler(async (event) => {
     // 同業訂單
     const { data: netOrder, error: netError } = await supabase
       .from('net_orders')
-      .select('platform_type, departure_date, quantity, contacts')
+      .select('platform_type, departure_date, receive_time, quantity, contacts')
       .eq('id', orderData.platform_id)
       .single()
 
@@ -107,6 +108,7 @@ export default defineEventHandler(async (event) => {
     lineName = contacts.name || '未提供'
     phone = contacts.phone || '未提供'
     deliveryDate = netOrder.departure_date
+    pickupTime = netOrder.receive_time || '-'
     luggageCount = netOrder.quantity || 0
   }
 
@@ -117,6 +119,7 @@ export default defineEventHandler(async (event) => {
 
   const order = {
     id: orderData.id.toString(),
+    voucherId: orderData.voucher_id,
     category: orderCategory,
     lineName,
     phone,
