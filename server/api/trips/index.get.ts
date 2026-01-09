@@ -1,4 +1,4 @@
-import type { TripResponse, SupabaseCourier, SupabaseScheduleStatus } from '../../utils/trips.types'
+import type { SupabaseCourier, SupabaseScheduleStatus, TripResponse } from '../../utils/trips.types'
 
 interface ScheduleRow {
   id: number

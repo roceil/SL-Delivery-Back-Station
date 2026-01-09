@@ -76,7 +76,10 @@ async function submitForm() {
               v-model="form.name"
               type="text"
               required
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
               placeholder="例：碼頭門市"
             >
           </div>
@@ -90,7 +93,10 @@ async function submitForm() {
               id="type"
               v-model="form.type"
               required
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
             >
               <option
                 v-for="stationType in stationTypes"
@@ -113,7 +119,10 @@ async function submitForm() {
             v-model="form.address"
             rows="3"
             required
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            class="
+              mt-1 block w-full rounded-md border-gray-300 shadow-sm
+              focus:border-blue-500 focus:ring-blue-500
+            "
             placeholder="請輸入完整的地址"
           ></textarea>
         </div>
@@ -128,7 +137,10 @@ async function submitForm() {
               id="area"
               v-model="form.area"
               type="text"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
               placeholder="例：A、B、C"
             >
             <p class="mt-1 text-sm text-gray-500">
@@ -145,7 +157,10 @@ async function submitForm() {
               id="latitude"
               v-model="form.latitude"
               type="text"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
               placeholder="22.4645"
             >
           </div>
@@ -159,7 +174,10 @@ async function submitForm() {
               id="longitude"
               v-model="form.longitude"
               type="text"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
               placeholder="120.4517"
             >
           </div>

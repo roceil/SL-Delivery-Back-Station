@@ -243,7 +243,9 @@ function formatTime(timeString: string) {
                 <span
                   v-if="order"
                   :class="getCategoryColor(order.category)"
-                  class="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                  class="
+                    inline-flex rounded-full px-3 py-1 text-xs font-semibold
+                  "
                 >
                   {{ order.category }}
                 </span>

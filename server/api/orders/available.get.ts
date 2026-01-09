@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
   const targetDate = (date as string) || today
 
   // 篩選符合條件的訂單
-  let availableOrders = mockOrders.filter((order) => {
+  const availableOrders = mockOrders.filter((order) => {
     // 必須是已確認狀態
     if (order.status !== 'confirmed') {
       return false

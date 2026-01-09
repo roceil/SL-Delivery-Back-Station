@@ -69,7 +69,10 @@ async function submitForm() {
               v-model="form.name"
               type="text"
               required
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
               placeholder="例：張小明"
             >
           </div>
@@ -95,11 +98,10 @@ async function submitForm() {
                 type="button"
                 class="
                   rounded-md border border-gray-300 bg-white px-3 py-2 text-sm
-                  font-medium text-gray-700
+                  font-medium whitespace-nowrap text-gray-700
                   hover:bg-gray-50
                   focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                   focus:outline-none
-                  whitespace-nowrap
                 "
                 @click="regenerateEmployeeNumber"
               >
@@ -122,7 +124,10 @@ async function submitForm() {
               id="phone"
               v-model="form.phone"
               type="tel"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
               placeholder="例：0912-345-678"
             >
           </div>
@@ -136,7 +141,10 @@ async function submitForm() {
               id="hireDate"
               v-model="form.hireDate"
               type="date"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
             >
           </div>
         </div>
@@ -151,7 +159,10 @@ async function submitForm() {
               id="status"
               v-model="form.status"
               required
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
             >
               <option
                 v-for="courierStatus in courierStatuses"
@@ -171,7 +182,10 @@ async function submitForm() {
             <select
               id="isAvailable"
               v-model="form.isAvailable"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              class="
+                mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                focus:border-blue-500 focus:ring-blue-500
+              "
             >
               <option :value="true">
                 可執行任務

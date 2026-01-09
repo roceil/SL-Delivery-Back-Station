@@ -306,10 +306,12 @@ async function handleSubmit() {
 
           <div class="flex flex-col gap-2 text-sm text-gray-500">
             <p>票券 ID: {{ merchant?.voucherId || '尚未生成' }}</p>
-            <p class="text-xs">提示：經緯度資訊請至「運送點管理」頁面編輯</p>
+            <p class="text-xs">
+              提示：經緯度資訊請至「運送點管理」頁面編輯
+            </p>
           </div>
 
-          <div />
+          <div></div>
 
           <div class="flex items-center gap-4">
             <label class="flex items-center gap-2">
