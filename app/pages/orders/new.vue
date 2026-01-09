@@ -3,11 +3,23 @@ useHead({
   title: '新建訂單 - 行李運送系統',
 })
 
+interface DeliveryPoint {
+  id: number
+  name: string
+  type: string
+  typeId: number
+  address: string
+  area: string
+  latitude: number | null
+  longitude: number | null
+  phone?: string
+  openHours?: string
+  createdAt: string
+}
+
 const router = useRouter()
 
 const form = ref({
-  lineName: '',
-  phone: '',
   deliveryDate: '',
   pickupTime: '',
   luggageCount: 1,
@@ -16,18 +28,18 @@ const form = ref({
   notes: '',
 })
 
-const { data: deliveryPoints } = await useFetch('/api/delivery-points')
+const { data: deliveryPoints } = await useFetch<DeliveryPoint[]>('/api/delivery-points')
 
 const selectedPickupLocation = computed(() => {
   if (!deliveryPoints.value)
     return null
-  return deliveryPoints.value.find(point => point.id === form.value.pickupLocationId)
+  return deliveryPoints.value.find(point => point.id.toString() === form.value.pickupLocationId)
 })
 
 const selectedDeliveryLocation = computed(() => {
   if (!deliveryPoints.value)
     return null
-  return deliveryPoints.value.find(point => point.id === form.value.deliveryLocationId)
+  return deliveryPoints.value.find(point => point.id.toString() === form.value.deliveryLocationId)
 })
 
 async function submitForm() {
@@ -55,48 +67,6 @@ async function submitForm() {
         class="space-y-6"
         @submit.prevent="submitForm"
       >
-        <!-- 客戶資訊 -->
-        <div class="border-b pb-6">
-          <h3 class="mb-4 text-lg font-medium text-gray-900">
-            客戶資訊
-          </h3>
-          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div>
-              <label
-                for="lineName"
-                class="block text-sm font-medium text-gray-700"
-              >LINE 名稱</label>
-              <input
-                id="lineName"
-                v-model="form.lineName"
-                type="text"
-                required
-                class="mt-1 block w-full"
-                placeholder="請輸入客戶的 LINE 名稱"
-              >
-            </div>
-
-            <div>
-              <label
-                for="phone"
-                class="block text-sm font-medium text-gray-700"
-              >聯絡電話</label>
-              <input
-                id="phone"
-                v-model="form.phone"
-                type="tel"
-                required
-                pattern="[0-9]{4}-[0-9]{3}-[0-9]{3}"
-                class="mt-1 block w-full"
-                placeholder="0912-345-678"
-              >
-              <p class="mt-1 text-xs text-gray-500">
-                格式：0912-345-678
-              </p>
-            </div>
-          </div>
-        </div>
-
         <!-- 配送資訊 -->
         <div class="border-b pb-6">
           <h3 class="mb-4 text-lg font-medium text-gray-900">

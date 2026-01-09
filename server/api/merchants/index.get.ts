@@ -1,62 +1,45 @@
 export default defineEventHandler(async (_event) => {
-  const partnerLocations = [
-    {
-      id: 'donggang-pier',
-      name: '東港碼頭',
-      address: '屏東縣東港鎮朝安里朝隆路43-5號',
-      type: 'pier',
-      area: 'A',
-    },
-    {
-      id: 'baisha-pier',
-      name: '白沙尾港',
-      address: '屏東縣琉球鄉白沙尾觀光港',
-      type: 'pier',
-      area: 'A',
-    },
-    {
-      id: 'dive-shop-ocean',
-      name: '小琉球海洋潛水',
-      address: '屏東縣琉球鄉中山路156號',
-      type: 'dive_shop',
-      area: 'B',
-    },
-    {
-      id: 'dive-shop-blue',
-      name: '小琉球藍海潛水',
-      address: '屏東縣琉球鄉三民路85號',
-      type: 'dive_shop',
-      area: 'B',
-    },
-    {
-      id: 'hostel-beachfront',
-      name: '海景民宿',
-      address: '屏東縣琉球鄉忠孝路18號',
-      type: 'hostel',
-      area: 'C',
-    },
-    {
-      id: 'hostel-coral',
-      name: '珊瑚礁民宿',
-      address: '屏東縣琉球鄉和平路56號',
-      type: 'hostel',
-      area: 'C',
-    },
-    {
-      id: 'beauty-cave',
-      name: '美人洞風景區',
-      address: '屏東縣琉球鄉環島公路美人洞',
-      type: 'attraction',
-      area: 'D',
-    },
-    {
-      id: 'vase-rock',
-      name: '花瓶岩',
-      address: '屏東縣琉球鄉花瓶岩',
-      type: 'attraction',
-      area: 'D',
-    },
-  ]
+  const supabase = useServiceRoleClient()
 
-  return partnerLocations
+  // 查詢所有商家，並加載類型資訊
+  const { data: merchants, error } = await supabase
+    .from('merchants')
+    .select(`
+      *,
+      merchants_types (
+        id,
+        name
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw createError({
+      statusCode: 500,
+      message: `查詢商家失敗: ${error.message}`,
+    })
+  }
+
+  // 格式化回傳資料
+  const formattedMerchants = (merchants || []).map(merchant => ({
+    id: merchant.id,
+    name: merchant.name,
+    contactPerson: merchant.contact_person,
+    phone: merchant.phone,
+    email: merchant.email,
+    address: merchant.address,
+    type: merchant.types,
+    typeName: merchant.merchants_types?.name || '',
+    area: merchant.address?.includes('A') ? 'A' : merchant.address?.includes('B') ? 'B' : merchant.address?.includes('C') ? 'C' : 'D',
+    isActive: merchant.is_active,
+    isCollaborate: merchant.is_collaborate,
+    voucherId: merchant.voucher_id,
+    usedCounts: merchant.used_counts,
+    maxUsageCounts: merchant.max_usage_counts,
+    remarks: merchant.remarks,
+    createdAt: merchant.created_at,
+    updatedAt: merchant.updated_at,
+  }))
+
+  return formattedMerchants
 })

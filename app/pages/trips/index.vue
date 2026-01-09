@@ -1,15 +1,26 @@
 <script lang="ts" setup>
+interface Trip {
+  id: string
+  name: string
+  description: string
+  courierId: string
+  courierName: string
+  scheduledDate: string
+  status: string
+  createdAt: string
+  dispatchedAt: string | null
+  completedAt: string | null
+  trackingUrl: string | null
+  orderCount: number
+  totalLuggage: number
+  areas: string[]
+}
+
 useHead({
   title: '行程總表 - 物流管理系統',
 })
 
-const { data: trips } = await useFetch('/api/trips')
-const { data: couriers } = await useFetch('/api/couriers')
-
-function getCourierName(courierId: string) {
-  const courier = couriers.value?.find((c: any) => c.id === courierId)
-  return courier?.name || '未知快遞員'
-}
+const { data: trips, refresh: refreshTrips } = await useFetch<Trip[]>('/api/trips')
 
 function getStatusText(status: string) {
   const statusMap = {
@@ -31,23 +42,66 @@ function getStatusColor(status: string) {
 
 async function dispatchTrip(tripId: string) {
   try {
-    await $fetch(`/api/trips/${tripId}/dispatch`, {
+    const result = await $fetch(`/api/trips/${tripId}/dispatch`, {
       method: 'POST',
     })
 
-    const data = trips.value
-    if (!data)
-      return
-
-    const tripIndex = data.findIndex((t: any) => t.id === tripId)
-    if (tripIndex > -1 && data[tripIndex]) {
-      data[tripIndex].status = 'dispatched'
-      data[tripIndex].dispatchedAt = new Date().toISOString()
-      data[tripIndex].trackingUrl = `${window.location.origin}/trips/track/${tripId}`
+    if (result.success) {
+      // eslint-disable-next-line no-alert
+      alert(result.message || '派發成功')
+      await refreshTrips()
     }
   }
-  catch (error) {
+  catch (error: any) {
     console.error('派發行程失敗:', error)
+    // eslint-disable-next-line no-alert
+    alert(error.data?.message || '派發失敗，請稍後再試')
+  }
+}
+
+async function completeTrip(tripId: string) {
+  // eslint-disable-next-line no-alert
+  if (!confirm('確定要完成此行程嗎？完成後將無法修改。')) {
+    return
+  }
+
+  try {
+    const result = await $fetch(`/api/trips/${tripId}/complete`, {
+      method: 'POST',
+    })
+
+    if (result.success) {
+      // eslint-disable-next-line no-alert
+      alert(result.message || '行程已完成')
+      await refreshTrips()
+    }
+  }
+  catch (error: any) {
+    console.error('完成行程失敗:', error)
+    // eslint-disable-next-line no-alert
+    alert(error.data?.message || '完成行程失敗，請稍後再試')
+  }
+}
+
+async function deleteTrip(tripId: string) {
+  // eslint-disable-next-line no-alert
+  if (!confirm('確定要刪除此行程嗎？此操作無法復原。')) {
+    return
+  }
+
+  try {
+    await $fetch(`/api/trips/${tripId}`, {
+      method: 'DELETE',
+    })
+
+    // eslint-disable-next-line no-alert
+    alert('行程已刪除')
+    await refreshTrips()
+  }
+  catch (error: any) {
+    console.error('刪除行程失敗:', error)
+    // eslint-disable-next-line no-alert
+    alert(error.data?.message || '刪除行程失敗，請稍後再試')
   }
 }
 
@@ -119,10 +173,7 @@ async function viewTripMap(tripId: string) {
       </div>
 
       <div
-        class="
-          overflow-hidden shadow ring-1 ring-black ring-opacity-5
-          md:rounded-lg
-        "
+        class="overflow-hidden shadow ring-1 ring-black md:rounded-lg"
       >
         <table class="min-w-full divide-y divide-gray-300">
           <thead class="bg-gray-50">
@@ -203,7 +254,7 @@ async function viewTripMap(tripId: string) {
                 </div>
               </td>
               <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
-                {{ getCourierName(trip.courierId) }}
+                {{ trip.courierName || '未分配' }}
               </td>
               <td class="px-6 py-4 text-sm text-gray-900">
                 <div class="space-y-1">
@@ -246,6 +297,14 @@ async function viewTripMap(tripId: string) {
                 </button>
 
                 <button
+                  v-if="trip.status === 'dispatched'"
+                  class="text-green-600 hover:text-green-900"
+                  @click="completeTrip(trip.id)"
+                >
+                  完成
+                </button>
+
+                <button
                   class="text-orange-600 hover:text-orange-900"
                   @click="viewTripMap(trip.id)"
                 >
@@ -254,7 +313,7 @@ async function viewTripMap(tripId: string) {
 
                 <button
                   v-if="trip.trackingUrl"
-                  class="text-green-600 hover:text-green-900"
+                  class="text-blue-600 hover:text-blue-900"
                   @click="copyTrackingUrl(trip.trackingUrl)"
                 >
                   複製連結
@@ -267,6 +326,14 @@ async function viewTripMap(tripId: string) {
                 >
                   查看
                 </NuxtLink>
+
+                <button
+                  v-if="trip.status !== 'completed'"
+                  class="text-red-600 hover:text-red-900"
+                  @click="deleteTrip(trip.id)"
+                >
+                  刪除
+                </button>
               </td>
             </tr>
           </tbody>

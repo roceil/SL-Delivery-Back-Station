@@ -39,6 +39,9 @@
   },
   "dependencies": {
     "@nuxt/fonts": "^0.12.1",
+    "@supabase/supabase-js": "^2.90.0",
+    "googleapis": "^169.0.0",
+    "nanoid": "^5.1.6",
     "qrcode.vue": "^3.6.0",
     "tailwindcss": "^4.1.18"
   }

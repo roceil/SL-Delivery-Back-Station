@@ -1,62 +1,73 @@
 <script lang="ts" setup>
 useHead({
-  title: '合作地點 - 行李運送系統',
+  title: '商家管理 - 行李運送系統',
 })
 
-const { data: locations } = await useFetch('/api/merchants')
+interface Merchant {
+  id: number
+  name: string
+  contactPerson: string
+  phone: string
+  email: string
+  address: string
+  type: number
+  typeName: string
+  area: string
+  isActive: boolean
+  isCollaborate: boolean
+  voucherId: string | null
+  usedCounts: number
+  maxUsageCounts: number | null
+  remarks: string
+  createdAt: string
+  updatedAt: string
+}
 
-const locationTypes = [
-  { value: 'all', label: '全部地點' },
-  { value: 'pier', label: '碼頭' },
-  { value: 'dive_shop', label: '潛水店' },
-  { value: 'hostel', label: '民宿' },
-  { value: 'attraction', label: '景點' },
-]
+const { data: merchants } = await useFetch<Merchant[]>('/api/merchants')
+
+// 取得所有類型選項
+const { data: types } = await useFetch('/api/stations/types')
+
+const locationTypes = computed(() => {
+  const allTypes = [{ value: 'all', label: '全部商家' }]
+  if (types.value) {
+    types.value.forEach((type: { id: number, name: string }) => {
+      allTypes.push({ value: type.id.toString(), label: type.name })
+    })
+  }
+  return allTypes
+})
 
 const selectedType = ref('all')
 
-const filteredLocations = computed(() => {
-  if (!locations.value)
+const filteredMerchants = computed(() => {
+  if (!merchants.value)
     return []
   if (selectedType.value === 'all')
-    return locations.value
-  return locations.value.filter(loc => loc.type === selectedType.value)
+    return merchants.value
+  return merchants.value.filter(merchant => merchant.type.toString() === selectedType.value)
 })
 
-function getTypeText(type: string) {
-  const typeMap = {
-    pier: '碼頭',
-    dive_shop: '潛水店',
-    hostel: '民宿',
-    attraction: '景點',
+function getTypeColor(typeId: number) {
+  const colorMap: Record<number, string> = {
+    1: 'bg-purple-100 text-purple-800',
+    2: 'bg-yellow-100 text-yellow-800',
   }
-  return typeMap[type as keyof typeof typeMap] || type
+  return colorMap[typeId] || 'bg-gray-100 text-gray-800'
 }
 
-function getTypeColor(type: string) {
-  const colorMap = {
-    pier: 'bg-blue-100 text-blue-800',
-    dive_shop: 'bg-cyan-100 text-cyan-800',
-    hostel: 'bg-purple-100 text-purple-800',
-    attraction: 'bg-green-100 text-green-800',
+function getTypeIcon(typeId: number) {
+  const iconMap: Record<number, string> = {
+    1: '🏠',
+    2: '🛵',
   }
-  return colorMap[type as keyof typeof colorMap] || 'bg-gray-100 text-gray-800'
-}
-
-function getTypeIcon(type: string) {
-  const iconMap = {
-    pier: '🚢',
-    dive_shop: '🤿',
-    hostel: '🏠',
-    attraction: '🏝️',
-  }
-  return iconMap[type as keyof typeof iconMap] || '📍'
+  return iconMap[typeId] || '📍'
 }
 
 const router = useRouter()
 
-function goToLocationDetail(locationId: string) {
-  router.push(`/merchants/${locationId}`)
+function goToMerchantDetail(merchantId: number) {
+  router.push(`/merchants/${merchantId}`)
 }
 </script>
 
@@ -69,7 +80,7 @@ function goToLocationDetail(locationId: string) {
             商家總覽
           </h1>
           <p class="mt-1 text-sm text-gray-500">
-            小琉球行李運送合作地點總覽
+            小琉球行李運送合作商家總覽
           </p>
         </div>
         <NuxtLink
@@ -82,7 +93,7 @@ function goToLocationDetail(locationId: string) {
             focus:outline-none
           "
         >
-          ➕ 新增地點
+          ➕ 新增商家
         </NuxtLink>
       </div>
 
@@ -111,7 +122,7 @@ function goToLocationDetail(locationId: string) {
                 text-gray-600
               "
             >
-              {{ locations?.length || 0 }}
+              {{ merchants?.length || 0 }}
             </span>
             <span
               v-else
@@ -120,45 +131,51 @@ function goToLocationDetail(locationId: string) {
                 text-gray-600
               "
             >
-              {{ locations?.filter(l => l.type === type.value).length || 0 }}
+              {{ merchants?.filter(m => m.type.toString() === type.value).length || 0 }}
             </span>
           </button>
         </nav>
       </div>
 
-      <!-- Location Cards -->
+      <!-- Merchant Cards -->
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div
-          v-for="location in filteredLocations"
-          :key="location.id"
+          v-for="merchant in filteredMerchants"
+          :key="merchant.id"
           class="
             cursor-pointer rounded-lg border border-gray-200 bg-white p-5
             transition-all
             hover:shadow-md
           "
-          @click="goToLocationDetail(location.id)"
+          @click="goToMerchantDetail(merchant.id)"
         >
           <div class="flex items-start gap-3">
             <div class="flex-shrink-0 text-3xl">
-              {{ getTypeIcon(location.type) }}
+              {{ getTypeIcon(merchant.type) }}
             </div>
             <div class="min-w-0 flex-1">
               <div class="mb-2 flex items-start justify-between">
                 <h3 class="text-base font-semibold text-gray-900">
-                  {{ location.name }}
+                  {{ merchant.name }}
                 </h3>
                 <span
-                  :class="getTypeColor(location.type)"
+                  :class="getTypeColor(merchant.type)"
                   class="
                     ml-2 inline-flex flex-shrink-0 rounded-full px-2 py-0.5
                     text-xs font-medium
                   "
                 >
-                  {{ getTypeText(location.type) }}
+                  {{ merchant.typeName }}
                 </span>
               </div>
               <p class="text-sm text-gray-600">
-                {{ location.address }}
+                {{ merchant.address }}
+              </p>
+              <p
+                v-if="merchant.phone"
+                class="mt-1 text-sm text-gray-500"
+              >
+                📞 {{ merchant.phone }}
               </p>
             </div>
           </div>
@@ -167,17 +184,17 @@ function goToLocationDetail(locationId: string) {
 
       <!-- Empty State -->
       <div
-        v-if="!filteredLocations || filteredLocations.length === 0"
+        v-if="!filteredMerchants || filteredMerchants.length === 0"
         class="py-12 text-center"
       >
         <div class="text-6xl">
-          📍
+          🏪
         </div>
         <h3 class="mt-2 text-sm font-medium text-gray-900">
-          沒有符合的地點
+          沒有符合的商家
         </h3>
         <p class="mt-1 text-sm text-gray-500">
-          請選擇其他類別查看合作地點
+          請選擇其他類別查看合作商家
         </p>
       </div>
     </div>

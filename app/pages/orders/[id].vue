@@ -1,6 +1,29 @@
 <script lang="ts" setup>
 import QrcodeVue from 'qrcode.vue'
 
+interface Location {
+  id: string
+  name: string
+  address: string
+  area: string
+}
+
+interface Order {
+  id: string
+  category: string
+  lineName: string
+  phone: string
+  deliveryDate: string | null
+  pickupTime: string
+  luggageCount: number
+  status: string
+  pickupLocation: Location
+  deliveryLocation: Location
+  notes: string
+  createdAt: string
+  updatedAt?: string
+}
+
 const route = useRoute()
 const orderId = route.params.id as string
 
@@ -8,7 +31,7 @@ useHead({
   title: `訂單詳細 #${orderId} - 行李運送系統`,
 })
 
-const { data: order, error } = await useFetch(`/api/orders/${orderId}`)
+const { data: order, error } = await useFetch<Order>(`/api/orders/${orderId}`)
 
 if (error.value) {
   throw createError({
@@ -22,11 +45,19 @@ function handlePrint() {
 }
 
 const statusConfig = {
-  pending: { text: '待處理', color: 'bg-yellow-100 text-yellow-800' },
+  pending: { text: '待確認', color: 'bg-yellow-100 text-yellow-800' },
   confirmed: { text: '已確認', color: 'bg-blue-100 text-blue-800' },
-  in_transit: { text: '運送中', color: 'bg-indigo-100 text-indigo-800' },
+  assigned: { text: '已分配行程', color: 'bg-purple-100 text-purple-800' },
+  in_delivery: { text: '配送中', color: 'bg-indigo-100 text-indigo-800' },
   delivered: { text: '已送達', color: 'bg-green-100 text-green-800' },
   cancelled: { text: '已取消', color: 'bg-red-100 text-red-800' },
+}
+
+const categoryConfig = {
+  散客: { color: 'bg-blue-100 text-blue-800' },
+  合作: { color: 'bg-purple-100 text-purple-800' },
+  Trip: { color: 'bg-green-100 text-green-800' },
+  Klook: { color: 'bg-orange-100 text-orange-800' },
 }
 
 function getStatusText(status: string) {
@@ -35,6 +66,10 @@ function getStatusText(status: string) {
 
 function getStatusColor(status: string) {
   return statusConfig[status as keyof typeof statusConfig]?.color || 'bg-gray-100 text-gray-800'
+}
+
+function getCategoryColor(category: string) {
+  return categoryConfig[category as keyof typeof categoryConfig]?.color || 'bg-gray-100 text-gray-800'
 }
 
 function formatDateTime(dateString: string) {
@@ -49,6 +84,13 @@ function formatDateTime(dateString: string) {
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('zh-TW')
+}
+
+function formatTime(timeString: string) {
+  if (!timeString || timeString === '-')
+    return '-'
+  // 將 hh:mm:ss 格式轉換為 hh:mm
+  return timeString.slice(0, 5)
 }
 </script>
 
@@ -195,6 +237,20 @@ function formatDate(dateString: string) {
           <dl class="space-y-3">
             <div>
               <dt class="text-sm font-medium text-gray-500">
+                訂單類別
+              </dt>
+              <dd class="mt-1">
+                <span
+                  v-if="order"
+                  :class="getCategoryColor(order.category)"
+                  class="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                >
+                  {{ order.category }}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt class="text-sm font-medium text-gray-500">
                 LINE 名稱
               </dt>
               <dd class="mt-1 text-sm text-gray-900">
@@ -231,7 +287,7 @@ function formatDate(dateString: string) {
                 收貨時間
               </dt>
               <dd class="mt-1 text-sm text-gray-900">
-                {{ order?.pickupTime }}
+                {{ formatTime(order?.pickupTime || '') }}
               </dd>
             </div>
             <div>

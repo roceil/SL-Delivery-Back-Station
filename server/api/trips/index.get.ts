@@ -1,89 +1,202 @@
+import type { TripResponse, SupabaseCourier, SupabaseScheduleStatus } from '../../utils/trips.types'
+
+interface ScheduleRow {
+  id: number
+  name: string
+  description: string | null
+  scheduled_date: string
+  dispatched_at: string | null
+  completed_at: string | null
+  tracking_url: string | null
+  notes: string | null
+  created_at: string
+  courier: SupabaseCourier | null
+  status: SupabaseScheduleStatus | null
+}
+
 export default defineEventHandler(async (_event) => {
-  // Mock 訂單資料
-  const mockOrders = [
-    {
-      id: 'order2',
-      luggageCount: 1,
-      deliveryLocation: { area: 'B' },
-    },
-    {
-      id: 'order3',
-      luggageCount: 3,
-      deliveryLocation: { area: 'C' },
-    },
-    {
-      id: 'order4',
-      luggageCount: 2,
-      deliveryLocation: { area: 'D' },
-    },
-    {
-      id: 'order5',
-      luggageCount: 1,
-      deliveryLocation: { area: 'C' },
-    },
-  ]
+  const supabase = useServiceRoleClient()
 
-  const mockTrips = [
-    {
-      id: 'trip1',
-      name: '2026-01-07-10-30',
-      description: '小琉球行李運送 - 區域 B, C',
-      courierId: 'courier1',
-      orderIds: ['order2', 'order3'],
-      scheduledDate: '2026-01-07',
-      status: 'dispatched',
-      createdAt: '2026-01-07T10:30:00Z',
-      dispatchedAt: '2026-01-07T11:00:00Z',
-      completedAt: null,
-      // @ts-expect-error - process is available in Nitro runtime
-      trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/trip1`,
-    },
-    {
-      id: 'trip2',
-      name: '2026-01-07-14-15',
-      description: '小琉球行李運送 - 區域 C, D',
-      courierId: 'courier2',
-      orderIds: ['order4', 'order5'],
-      scheduledDate: '2026-01-07',
-      status: 'completed',
-      createdAt: '2026-01-07T14:15:00Z',
-      dispatchedAt: '2026-01-07T14:30:00Z',
-      completedAt: '2026-01-07T17:20:00Z',
-      // @ts-expect-error - process is available in Nitro runtime
-      trackingUrl: `${process.env.APP_URL || 'http://localhost:3000'}/trips/track/trip2`,
-    },
-    {
-      id: 'trip3',
-      name: '2026-01-08-09-00',
-      description: '小琉球行李運送 - 區域 B',
-      courierId: 'courier3',
-      orderIds: [],
-      scheduledDate: '2026-01-08',
-      status: 'pending',
-      createdAt: '2026-01-07T16:00:00Z',
-      dispatchedAt: null,
-      completedAt: null,
-      trackingUrl: null,
-    },
-  ]
+  // 查詢所有行程資料
+  const { data: schedulesData, error } = await supabase
+    .from('schedules')
+    .select(`
+      id,
+      name,
+      description,
+      scheduled_date,
+      dispatched_at,
+      completed_at,
+      tracking_url,
+      notes,
+      created_at,
+      courier:couriers (
+        id,
+        name,
+        employee_number
+      ),
+      status:schedules_status (
+        status
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .returns<ScheduleRow[]>()
 
-  // 為每個行程添加統計資訊
-  const tripsWithStats = mockTrips.map((trip) => {
-    const tripOrders = mockOrders.filter(order => trip.orderIds.includes(order.id))
+  if (error) {
+    throw createError({
+      statusCode: 500,
+      message: `查詢行程失敗: ${error.message}`,
+    })
+  }
 
-    // 計算總行李數
-    const totalLuggage = tripOrders.reduce((sum, order) => sum + order.luggageCount, 0)
+  if (!schedulesData || schedulesData.length === 0) {
+    return []
+  }
 
-    // 獲取所有區域（去重）
-    const areas = [...new Set(tripOrders.map(order => order.deliveryLocation.area))].sort()
+  // 查詢每個行程的訂單統計資訊
+  const tripsWithStats = await Promise.all(
+    schedulesData.map(async (schedule): Promise<TripResponse> => {
+      interface ScheduleOrderRow {
+        order: {
+          id: number
+          end_point: {
+            area: string
+          } | null
+        } | null
+      }
 
-    return {
-      ...trip,
-      orderCount: trip.orderIds.length,
-      totalLuggage,
-      areas,
-    }
-  })
+      // 查詢該行程的所有訂單
+      const { data: scheduleOrders, error: scheduleOrdersError } = await supabase
+        .from('schedule_orders')
+        .select(`
+          order:orders (
+            id,
+            end_point:stations!orders_end_point_fkey (
+              area
+            )
+          )
+        `)
+        .eq('schedule_id', schedule.id)
+        .returns<ScheduleOrderRow[]>()
+
+      if (scheduleOrdersError) {
+        console.error('查詢行程訂單失敗:', scheduleOrdersError)
+        return {
+          id: schedule.id.toString(),
+          name: schedule.name,
+          description: schedule.description || '',
+          courierId: schedule.courier?.id?.toString() || '',
+          courierName: schedule.courier?.name || '未分配',
+          scheduledDate: schedule.scheduled_date,
+          status: schedule.status?.status || 'pending',
+          createdAt: schedule.created_at,
+          dispatchedAt: schedule.dispatched_at,
+          completedAt: schedule.completed_at,
+          trackingUrl: schedule.tracking_url,
+          orderCount: 0,
+          totalLuggage: 0,
+          areas: [],
+        }
+      }
+
+      const orders = scheduleOrders || []
+
+      // 獲取訂單 IDs
+      const orderIds = orders
+        .map(so => so.order?.id)
+        .filter((id): id is number => id !== null && id !== undefined)
+
+      // 如果有訂單，查詢訂單詳情以獲取行李數量
+      let totalLuggage = 0
+      const areas: string[] = []
+
+      if (orderIds.length > 0) {
+        interface OrderRow {
+          id: number
+          platform_type: number
+          platform_id: string
+          end_point: {
+            area: string
+          } | null
+        }
+
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            platform_type,
+            platform_id,
+            end_point:stations!orders_end_point_fkey (
+              area
+            )
+          `)
+          .in('id', orderIds)
+          .returns<OrderRow[]>()
+
+        if (!ordersError && ordersData) {
+          // 收集所有的 platform_id 並按類型分組
+          const normalOrderIds: string[] = []
+          const netOrderIds: string[] = []
+
+          ordersData.forEach((order) => {
+            // 收集區域
+            if (order.end_point?.area && !areas.includes(order.end_point.area)) {
+              areas.push(order.end_point.area)
+            }
+
+            // 分類訂單 ID
+            if (order.platform_type === 4) {
+              normalOrderIds.push(order.platform_id)
+            }
+            else if (order.platform_type === 3) {
+              netOrderIds.push(order.platform_id)
+            }
+          })
+
+          // 查詢 normal_orders 的數量
+          if (normalOrderIds.length > 0) {
+            const { data: normalOrders, error: normalError } = await supabase
+              .from('normal_orders')
+              .select('quantity')
+              .in('id', normalOrderIds)
+
+            if (!normalError && normalOrders) {
+              totalLuggage += normalOrders.reduce((sum, no) => sum + (no.quantity || 0), 0)
+            }
+          }
+
+          // 查詢 net_orders 的數量
+          if (netOrderIds.length > 0) {
+            const { data: netOrders, error: netError } = await supabase
+              .from('net_orders')
+              .select('quantity')
+              .in('id', netOrderIds)
+
+            if (!netError && netOrders) {
+              totalLuggage += netOrders.reduce((sum, no) => sum + (no.quantity || 0), 0)
+            }
+          }
+        }
+      }
+
+      return {
+        id: schedule.id.toString(),
+        name: schedule.name,
+        description: schedule.description || '',
+        courierId: schedule.courier?.id?.toString() || '',
+        courierName: schedule.courier?.name || '未分配',
+        scheduledDate: schedule.scheduled_date,
+        status: schedule.status?.status || 'pending',
+        createdAt: schedule.created_at,
+        dispatchedAt: schedule.dispatched_at,
+        completedAt: schedule.completed_at,
+        trackingUrl: schedule.tracking_url,
+        orderCount: orders.length,
+        totalLuggage,
+        areas: areas.sort(),
+      }
+    }),
+  )
 
   return tripsWithStats
 })

@@ -1,25 +1,55 @@
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
+  const supabase = useServiceRoleClient()
 
   if (!id) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'ID is required',
+      message: '缺少運送點 ID',
     })
   }
 
-  // 模擬收件地詳情
-  const deliveryPoint = {
-    id,
-    name: '台北車站門市',
-    type: '7-11',
-    storeId: 'TW001',
-    address: '台北市中正區北平西路3號1樓',
-    phone: '02-2312-1234',
-    openHours: '06:00-24:00',
-    status: 'active',
-    createdAt: '2024-01-15T10:00:00Z',
+  const { data, error } = await supabase
+    .from('stations')
+    .select(`
+      id,
+      name,
+      address,
+      area,
+      type,
+      latitude,
+      longitude,
+      created_at,
+      stations_types!inner (
+        name
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw createError({
+        statusCode: 404,
+        message: '找不到此運送點',
+      })
+    }
+    throw createError({
+      statusCode: 500,
+      message: `取得運送點失敗: ${error.message}`,
+    })
   }
 
-  return deliveryPoint
+  // 轉換資料格式
+  return {
+    id: data.id,
+    name: data.name,
+    type: data.type,
+    typeName: (data.stations_types as any)?.name || '未分類',
+    address: data.address,
+    area: data.area,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    createdAt: data.created_at,
+  }
 })

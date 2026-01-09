@@ -26,3 +26,10 @@ logs
 
 # AI context
 CLAUDE.local.md
+
+# Google Service Account JSON files
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!wrangler.jsonc

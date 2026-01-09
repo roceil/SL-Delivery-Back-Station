@@ -1,32 +1,21 @@
 <script lang="ts" setup>
 useHead({
-  title: '新增收件地 - 物流管理系統',
+  title: '新增運送點 - 物流管理系統',
 })
 
 const router = useRouter()
 
+// 從 API 取得地點類型
+const { data: stationTypes } = await useFetch('/api/stations/types')
+
 const form = ref({
   name: '',
-  type: '7-11',
-  storeId: '',
+  type: stationTypes.value?.[0]?.id || 1,
   address: '',
-  phone: '',
-  openHours: '',
-  status: 'active',
+  area: '',
+  latitude: '',
+  longitude: '',
 })
-
-const storeTypes = [
-  { value: '7-11', label: '7-11' },
-  { value: '全家', label: '全家便利商店' },
-  { value: '萊爾富', label: '萊爾富' },
-  { value: 'OK超商', label: 'OK超商' },
-  { value: '其他', label: '其他' },
-]
-
-const statusOptions = [
-  { value: 'active', label: '營業中' },
-  { value: 'inactive', label: '暫停服務' },
-]
 
 async function submitForm() {
   try {
@@ -37,7 +26,8 @@ async function submitForm() {
     router.push('/delivery-points')
   }
   catch (error) {
-    console.error('新增收件地失敗:', error)
+    console.error('新增運送點失敗:', error)
+    alert('新增失敗，請稍後再試')
   }
 }
 </script>
@@ -46,7 +36,7 @@ async function submitForm() {
   <div class="rounded-lg bg-white shadow">
     <div class="px-4 py-5 sm:p-6">
       <h1 class="mb-6 text-2xl font-bold text-gray-900">
-        新增收件地
+        新增運送點
       </h1>
 
       <form
@@ -58,14 +48,14 @@ async function submitForm() {
             <label
               for="name"
               class="block text-sm font-medium text-gray-700"
-            >收件地名稱</label>
+            >運送點名稱</label>
             <input
               id="name"
               v-model="form.name"
               type="text"
               required
-              class="mt-1 block w-full"
-              placeholder="例：台北車站門市"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="例：碼頭門市"
             >
           </div>
 
@@ -73,54 +63,21 @@ async function submitForm() {
             <label
               for="type"
               class="block text-sm font-medium text-gray-700"
-            >門市類型</label>
+            >地點類型</label>
             <select
               id="type"
               v-model="form.type"
               required
-              class="mt-1 block w-full"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             >
               <option
-                v-for="storeType in storeTypes"
-                :key="storeType.value"
-                :value="storeType.value"
+                v-for="stationType in stationTypes"
+                :key="stationType.id"
+                :value="stationType.id"
               >
-                {{ storeType.label }}
+                {{ stationType.name }}
               </option>
             </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <label
-              for="storeId"
-              class="block text-sm font-medium text-gray-700"
-            >店鋪編號</label>
-            <input
-              id="storeId"
-              v-model="form.storeId"
-              type="text"
-              class="mt-1 block w-full"
-              placeholder="例：TW001、FM456"
-            >
-            <p class="mt-1 text-sm text-gray-500">
-              便利商店的店鋪編號（選填）
-            </p>
-          </div>
-
-          <div>
-            <label
-              for="phone"
-              class="block text-sm font-medium text-gray-700"
-            >聯絡電話</label>
-            <input
-              id="phone"
-              v-model="form.phone"
-              type="tel"
-              class="mt-1 block w-full"
-              placeholder="02-2312-1234"
-            >
           </div>
         </div>
 
@@ -134,47 +91,55 @@ async function submitForm() {
             v-model="form.address"
             rows="3"
             required
-            class="mt-1 block w-full"
-            placeholder="請輸入完整的門市地址"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            placeholder="請輸入完整的地址"
           ></textarea>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
           <div>
             <label
-              for="openHours"
+              for="area"
               class="block text-sm font-medium text-gray-700"
-            >營業時間</label>
+            >區域</label>
             <input
-              id="openHours"
-              v-model="form.openHours"
+              id="area"
+              v-model="form.area"
               type="text"
-              class="mt-1 block w-full"
-              placeholder="例：24小時、07:00-23:00"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="例：A、B、C"
             >
             <p class="mt-1 text-sm text-gray-500">
-              門市的營業時間
+              配送區域代碼（選填）
             </p>
           </div>
 
           <div>
             <label
-              for="status"
+              for="latitude"
               class="block text-sm font-medium text-gray-700"
-            >狀態</label>
-            <select
-              id="status"
-              v-model="form.status"
-              class="mt-1 block w-full"
+            >緯度</label>
+            <input
+              id="latitude"
+              v-model="form.latitude"
+              type="text"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="22.4645"
             >
-              <option
-                v-for="status in statusOptions"
-                :key="status.value"
-                :value="status.value"
-              >
-                {{ status.label }}
-              </option>
-            </select>
+          </div>
+
+          <div>
+            <label
+              for="longitude"
+              class="block text-sm font-medium text-gray-700"
+            >經度</label>
+            <input
+              id="longitude"
+              v-model="form.longitude"
+              type="text"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="120.4517"
+            >
           </div>
         </div>
 
@@ -184,57 +149,18 @@ async function submitForm() {
             預覽
           </h3>
           <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div class="flex items-center">
-              <div
-                class="
-                  flex h-8 w-8 flex-shrink-0 items-center justify-center
-                  rounded-full text-sm font-medium
-                "
-                :class="
-                  form.type === '7-11'
-                    ? 'bg-red-100 text-red-600'
-                    : form.type === '全家'
-                      ? 'bg-blue-100 text-blue-600'
-                      : form.type === '萊爾富'
-                        ? 'bg-green-100 text-green-600'
-                        : 'bg-purple-100 text-purple-600'
-                "
-              >
-                {{ form.type.charAt(0) }}
+            <div class="space-y-2 text-sm text-gray-600">
+              <div class="text-base font-medium text-gray-900">
+                {{ form.name || '未填寫名稱' }}
               </div>
-              <div class="ml-4">
-                <div class="text-sm font-medium text-gray-900">
-                  {{ form.name || '未填寫名稱' }}
-                </div>
-                <div class="text-sm text-gray-500">
-                  {{ form.storeId || '無店鋪編號' }}
-                </div>
-              </div>
-            </div>
-            <div class="mt-3 space-y-1 text-sm text-gray-600">
               <div v-if="form.address">
                 📍 {{ form.address }}
               </div>
-              <div v-if="form.phone">
-                📞 {{ form.phone }}
+              <div v-if="form.area">
+                🗺️ 區域：{{ form.area }}
               </div>
-              <div v-if="form.openHours">
-                🕒 {{ form.openHours }}
-              </div>
-              <div>
-                <span
-                  class="
-                    inline-flex rounded-full px-2 text-xs leading-5
-                    font-semibold
-                  "
-                  :class="
-                    form.status === 'active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  "
-                >
-                  {{ form.status === 'active' ? '營業中' : '暫停服務' }}
-                </span>
+              <div v-if="form.latitude && form.longitude">
+                🧭 座標：{{ form.latitude }}, {{ form.longitude }}
               </div>
             </div>
           </div>
@@ -263,7 +189,7 @@ async function submitForm() {
               focus:outline-none
             "
           >
-            新增收件地
+            新增運送點
           </button>
         </div>
       </form>

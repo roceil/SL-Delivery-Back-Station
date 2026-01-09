@@ -1,76 +1,94 @@
 <script lang="ts" setup>
 const route = useRoute()
 const router = useRouter()
-const locationId = route.params.id as string
+const merchantId = route.params.id as string
 
 useHead({
-  title: '編輯合作地點 - 行李運送系統',
+  title: '編輯商家 - 行李運送系統',
 })
 
-const locationTypes = [
-  { value: 'pier', label: '碼頭', icon: '🚢' },
-  { value: 'dive_shop', label: '潛水店', icon: '🤿' },
-  { value: 'hostel', label: '民宿', icon: '🏠' },
-  { value: 'attraction', label: '景點', icon: '🏝️' },
-]
+interface Merchant {
+  id: number
+  name: string
+  contactPerson: string
+  phone: string
+  email: string
+  address: string
+  type: number
+  typeName: string
+  area: string
+  isActive: boolean
+  isCollaborate: boolean
+  voucherId: string | null
+  usedCounts: number
+  maxUsageCounts: number | null
+  remarks: string
+  createdAt: string
+  updatedAt: string
+}
 
-// Fetch existing location data
-const { data: location, error } = await useFetch(`/api/merchants/${locationId}`)
+// 取得商家類型選項
+const { data: types } = await useFetch('/api/stations/types')
 
-if (error.value || !location.value) {
+// 取得商家現有資料
+const { data: merchant, error } = await useFetch<Merchant>(`/api/merchants/${merchantId}`)
+
+if (error.value || !merchant.value) {
   throw createError({
     statusCode: 404,
-    message: '找不到此合作地點',
+    message: '找不到此商家',
   })
 }
 
-// Initialize form with existing data
+// 初始化表單資料
 const form = ref({
-  name: location.value.name,
-  address: location.value.address,
-  type: location.value.type,
-  area: location.value.area,
-  phone: location.value.phone,
-  openingHours: location.value.openingHours,
-  description: location.value.description,
-  features: [...location.value.features],
-  notes: location.value.notes,
-  partnerSince: location.value.partnerSince,
-  voucherStock: location.value.voucherStock,
+  name: merchant.value.name || '',
+  contactPerson: merchant.value.contactPerson || '',
+  phone: merchant.value.phone || '',
+  email: merchant.value.email || '',
+  address: merchant.value.address || '',
+  type: merchant.value.type || 1,
+  area: merchant.value.area || 'A',
+  isActive: merchant.value.isActive !== undefined ? merchant.value.isActive : true,
+  isCollaborate: merchant.value.isCollaborate || false,
+  maxUsageCounts: merchant.value.maxUsageCounts || null,
+  remarks: merchant.value.remarks || '',
 })
 
-const newFeature = ref('')
 const isSubmitting = ref(false)
-
-function addFeature() {
-  if (!newFeature.value.trim())
-    return
-
-  form.value.features.push(newFeature.value.trim())
-  newFeature.value = ''
-}
-
-function removeFeature(index: number) {
-  form.value.features.splice(index, 1)
-}
+const errorMessage = ref('')
+const successMessage = ref('')
 
 async function handleSubmit() {
   if (isSubmitting.value)
     return
 
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  if (!form.value.name || !form.value.address) {
+    errorMessage.value = '請填寫商家名稱和地址'
+    return
+  }
+
   isSubmitting.value = true
 
   try {
-    await $fetch(`/api/merchants/${locationId}`, {
-      method: 'PUT',
+    const response = await $fetch<{ success: boolean }>(`/api/merchants/${merchantId}`, {
+      method: 'PUT' as const,
       body: form.value,
     })
 
-    router.push(`/merchants/${locationId}`)
+    if (response.success) {
+      successMessage.value = '商家更新成功！'
+      setTimeout(() => {
+        router.push(`/merchants/${merchantId}`)
+      }, 1500)
+    }
   }
-  catch (error) {
-    console.error('更新地點失敗:', error)
-    alert('更新地點失敗，請稍後再試')
+  catch (error: unknown) {
+    console.error('更新商家失敗:', error)
+    errorMessage.value = (error as { data?: { message?: string } })?.data?.message || '更新商家失敗，請稍後再試'
   }
   finally {
     isSubmitting.value = false
@@ -83,7 +101,7 @@ async function handleSubmit() {
     <div class="px-4 py-5 sm:p-6">
       <div class="mb-6 flex items-center gap-4">
         <NuxtLink
-          :to="`/merchants/${locationId}`"
+          :to="`/merchants/${merchantId}`"
           class="
             rounded-md border border-gray-300 bg-white px-3 py-2 text-sm
             font-medium text-gray-700 shadow-sm
@@ -95,8 +113,32 @@ async function handleSubmit() {
           ← 返回
         </NuxtLink>
         <h1 class="text-2xl font-bold text-gray-900">
-          編輯地點
+          編輯商家
         </h1>
+      </div>
+
+      <!-- 錯誤訊息 -->
+      <div
+        v-if="errorMessage"
+        class="mb-4 rounded-md bg-red-50 p-4"
+      >
+        <div class="flex">
+          <div class="text-sm text-red-800">
+            {{ errorMessage }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 成功訊息 -->
+      <div
+        v-if="successMessage"
+        class="mb-4 rounded-md bg-green-50 p-4"
+      >
+        <div class="flex">
+          <div class="text-sm text-green-800">
+            {{ successMessage }}
+          </div>
+        </div>
       </div>
 
       <form
@@ -108,7 +150,7 @@ async function handleSubmit() {
             <label
               for="name"
               class="block text-sm font-medium text-gray-700"
-            >地點名稱 *</label>
+            >商家名稱 *</label>
             <input
               id="name"
               v-model="form.name"
@@ -124,14 +166,47 @@ async function handleSubmit() {
 
           <div>
             <label
+              for="contactPerson"
+              class="block text-sm font-medium text-gray-700"
+            >聯絡人</label>
+            <input
+              id="contactPerson"
+              v-model="form.contactPerson"
+              type="text"
+              class="
+                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
+                shadow-sm
+                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
+              "
+            >
+          </div>
+
+          <div>
+            <label
               for="phone"
               class="block text-sm font-medium text-gray-700"
-            >聯絡電話 *</label>
+            >聯絡電話</label>
             <input
               id="phone"
               v-model="form.phone"
               type="tel"
-              required
+              class="
+                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
+                shadow-sm
+                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
+              "
+            >
+          </div>
+
+          <div>
+            <label
+              for="email"
+              class="block text-sm font-medium text-gray-700"
+            >電子郵件</label>
+            <input
+              id="email"
+              v-model="form.email"
+              type="email"
               class="
                 mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
                 shadow-sm
@@ -144,7 +219,7 @@ async function handleSubmit() {
             <label
               for="address"
               class="block text-sm font-medium text-gray-700"
-            >地點地址 *</label>
+            >商家地址 *</label>
             <textarea
               id="address"
               v-model="form.address"
@@ -162,11 +237,10 @@ async function handleSubmit() {
             <label
               for="type"
               class="block text-sm font-medium text-gray-700"
-            >地點類型 *</label>
+            >商家類型</label>
             <select
               id="type"
-              v-model="form.type"
-              required
+              v-model.number="form.type"
               class="
                 mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
                 shadow-sm
@@ -174,11 +248,11 @@ async function handleSubmit() {
               "
             >
               <option
-                v-for="locationType in locationTypes"
-                :key="locationType.value"
-                :value="locationType.value"
+                v-for="type in types"
+                :key="type.id"
+                :value="type.id"
               >
-                {{ locationType.icon }} {{ locationType.label }}
+                {{ type.name }}
               </option>
             </select>
           </div>
@@ -187,11 +261,10 @@ async function handleSubmit() {
             <label
               for="area"
               class="block text-sm font-medium text-gray-700"
-            >商家區域 *</label>
+            >區域</label>
             <select
               id="area"
               v-model="form.area"
-              required
               class="
                 mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
                 shadow-sm
@@ -215,143 +288,13 @@ async function handleSubmit() {
 
           <div>
             <label
-              for="openingHours"
+              for="maxUsageCounts"
               class="block text-sm font-medium text-gray-700"
-            >營業時間 *</label>
+            >最大使用次數</label>
             <input
-              id="openingHours"
-              v-model="form.openingHours"
-              type="text"
-              required
-              placeholder="例: 08:00 - 20:00"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-          </div>
-
-          <div class="sm:col-span-2">
-            <label
-              for="description"
-              class="block text-sm font-medium text-gray-700"
-            >地點說明 *</label>
-            <textarea
-              id="description"
-              v-model="form.description"
-              rows="3"
-              required
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            ></textarea>
-          </div>
-
-          <div class="sm:col-span-2">
-            <label
-              for="features"
-              class="block text-sm font-medium text-gray-700"
-            >提供服務</label>
-            <div class="mt-2 flex gap-2">
-              <input
-                id="features"
-                v-model="newFeature"
-                type="text"
-                placeholder="輸入服務項目後按新增"
-                class="
-                  block w-full rounded-md border border-gray-300 px-3 py-2
-                  shadow-sm
-                  focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-                "
-                @keyup.enter="addFeature"
-              >
-              <button
-                type="button"
-                class="
-                  rounded-md border border-transparent bg-blue-600 px-4 py-2
-                  text-sm font-medium text-white
-                  hover:bg-blue-700
-                  focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                  focus:outline-none
-                "
-                @click="addFeature"
-              >
-                新增
-              </button>
-            </div>
-            <div
-              v-if="form.features.length > 0"
-              class="mt-3 flex flex-wrap gap-2"
-            >
-              <span
-                v-for="(feature, index) in form.features"
-                :key="index"
-                class="
-                  inline-flex items-center gap-1 rounded-full bg-blue-50 px-3
-                  py-1 text-sm font-medium text-blue-700
-                "
-              >
-                {{ feature }}
-                <button
-                  type="button"
-                  class="text-blue-500 hover:text-blue-700"
-                  @click="removeFeature(index)"
-                >
-                  ×
-                </button>
-              </span>
-            </div>
-          </div>
-
-          <div class="sm:col-span-2">
-            <label
-              for="notes"
-              class="block text-sm font-medium text-gray-700"
-            >重要提醒</label>
-            <textarea
-              id="notes"
-              v-model="form.notes"
-              rows="2"
-              placeholder="特殊注意事項或提醒事項"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            ></textarea>
-          </div>
-
-          <div>
-            <label
-              for="partnerSince"
-              class="block text-sm font-medium text-gray-700"
-            >合作開始日期 *</label>
-            <input
-              id="partnerSince"
-              v-model="form.partnerSince"
-              type="date"
-              required
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-          </div>
-
-          <div>
-            <label
-              for="voucherStock"
-              class="block text-sm font-medium text-gray-700"
-            >票卷庫存數量 *</label>
-            <input
-              id="voucherStock"
-              v-model.number="form.voucherStock"
+              id="maxUsageCounts"
+              v-model.number="form.maxUsageCounts"
               type="number"
-              required
               min="0"
               class="
                 mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
@@ -360,11 +303,62 @@ async function handleSubmit() {
               "
             >
           </div>
+
+          <div class="flex flex-col gap-2 text-sm text-gray-500">
+            <p>票券 ID: {{ merchant?.voucherId || '尚未生成' }}</p>
+            <p class="text-xs">提示：經緯度資訊請至「運送點管理」頁面編輯</p>
+          </div>
+
+          <div />
+
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2">
+              <input
+                v-model="form.isActive"
+                type="checkbox"
+                class="
+                  rounded border-gray-300 text-blue-600
+                  focus:ring-blue-500
+                "
+              >
+              <span class="text-sm font-medium text-gray-700">啟用狀態</span>
+            </label>
+
+            <label class="flex items-center gap-2">
+              <input
+                v-model="form.isCollaborate"
+                type="checkbox"
+                class="
+                  rounded border-gray-300 text-blue-600
+                  focus:ring-blue-500
+                "
+              >
+              <span class="text-sm font-medium text-gray-700">合作商家</span>
+            </label>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label
+              for="remarks"
+              class="block text-sm font-medium text-gray-700"
+            >備註</label>
+            <textarea
+              id="remarks"
+              v-model="form.remarks"
+              rows="3"
+              placeholder="商家備註資訊"
+              class="
+                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
+                shadow-sm
+                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
+              "
+            ></textarea>
+          </div>
         </div>
 
         <div class="flex justify-end gap-3 border-t pt-6">
           <NuxtLink
-            :to="`/merchants/${locationId}`"
+            :to="`/merchants/${merchantId}`"
             class="
               rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
               font-medium text-gray-700 shadow-sm
@@ -387,7 +381,7 @@ async function handleSubmit() {
               disabled:opacity-50
             "
           >
-            {{ isSubmitting ? '更新中...' : '更新地點' }}
+            {{ isSubmitting ? '更新中...' : '更新商家' }}
           </button>
         </div>
       </form>

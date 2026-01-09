@@ -3,11 +3,31 @@ useHead({
   title: '結帳總覽 - 物流管理系統',
 })
 
+interface Merchant {
+  id: number
+  name: string
+  contactPerson: string
+  phone: string
+  email: string
+  address: string
+  type: number
+  typeName: string
+  area: string
+  isActive: boolean
+  isCollaborate: boolean
+  voucherId: string | null
+  usedCounts: number
+  maxUsageCounts: number | null
+  remarks: string
+  createdAt: string
+  updatedAt: string
+}
+
 const { data: billingData } = await useFetch('/api/billing')
-const { data: merchants } = await useFetch('/api/merchants')
+const { data: merchants } = await useFetch<Merchant[]>('/api/merchants')
 
 function getMerchantName(merchantId: string) {
-  const merchant = merchants.value?.find((m: any) => m.id === merchantId)
+  const merchant = merchants.value?.find(m => m.id.toString() === merchantId)
   return merchant?.name || '未知商家'
 }
 

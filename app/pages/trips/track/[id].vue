@@ -1,4 +1,46 @@
 <script lang="ts" setup>
+interface TripDetail {
+  id: string
+  name: string
+  description: string
+  courierId: string
+  courierName: string
+  scheduledDate: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  dispatchedAt: string | null
+  completedAt: string | null
+  trackingUrl: string | null
+  notes: string
+  orderIds: string[]
+}
+
+interface TripOrder {
+  id: string
+  category: string
+  lineName: string
+  phone: string
+  deliveryDate: string | null
+  pickupTime: string
+  luggageCount: number
+  status: string
+  pickupLocation: {
+    id: string
+    name: string
+    address: string
+    area: string
+  }
+  deliveryLocation: {
+    id: string
+    name: string
+    address: string
+    area: string
+  }
+  notes: string
+  createdAt: string
+}
+
 const route = useRoute()
 const tripId = route.params.id as string
 
@@ -6,8 +48,8 @@ useHead({
   title: `行程追蹤 - ${tripId} - 物流管理系統`,
 })
 
-const { data: trip } = await useFetch(`/api/trips/${tripId}`)
-const { data: tripOrders } = await useFetch(`/api/trips/${tripId}/orders`)
+const { data: trip } = await useFetch<TripDetail>(`/api/trips/${tripId}`)
+const { data: tripOrders } = await useFetch<TripOrder[]>(`/api/trips/${tripId}/orders`)
 
 const completedOrders = ref<string[]>([])
 
@@ -32,14 +74,14 @@ function openMap() {
   const allAddresses: string[] = []
 
   // 添加所有起點地址
-  tripOrders.value.forEach((order: any) => {
+  tripOrders.value.forEach((order) => {
     if (!allAddresses.includes(order.pickupLocation.address)) {
       allAddresses.push(order.pickupLocation.address)
     }
   })
 
   // 添加所有終點地址
-  tripOrders.value.forEach((order: any) => {
+  tripOrders.value.forEach((order) => {
     if (!allAddresses.includes(order.deliveryLocation.address)) {
       allAddresses.push(order.deliveryLocation.address)
     }
@@ -78,15 +120,15 @@ const remainingOrders = computed(() => {
 const totalLuggage = computed(() => {
   if (!tripOrders.value)
     return 0
-  return tripOrders.value.reduce((sum: number, order: any) => sum + order.luggageCount, 0)
+  return tripOrders.value.reduce((sum, order) => sum + order.luggageCount, 0)
 })
 
 const completedLuggage = computed(() => {
   if (!tripOrders.value)
     return 0
   return tripOrders.value
-    .filter((order: any) => completedOrders.value.includes(order.id))
-    .reduce((sum: number, order: any) => sum + order.luggageCount, 0)
+    .filter(order => completedOrders.value.includes(order.id))
+    .reduce((sum, order) => sum + order.luggageCount, 0)
 })
 </script>
 

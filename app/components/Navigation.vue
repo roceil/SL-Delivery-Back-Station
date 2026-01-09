@@ -6,9 +6,9 @@ const navItems = [
   { to: '/orders', label: '訂單總覽' },
   { to: '/trips', label: '行程管理' },
   { to: '/merchants', label: '商家管理' },
-  // { to: '/delivery-points', label: '收件地管理' },
+  { to: '/delivery-points', label: '運送點管理' },
   { to: '/billing', label: '結帳總覽' },
-  { to: '/couriers', label: '快遞員總覽' },
+  { to: '/couriers', label: '夥伴總覽' },
 ]
 
 function isActive(path: string) {
@@ -26,7 +26,7 @@ function isActive(path: string) {
         <div class="flex">
           <div class="flex flex-shrink-0 items-center">
             <h1 class="text-xl font-bold text-gray-900">
-              物流管理系統
+              行李運送系統
             </h1>
           </div>
           <div class="hidden sm:ml-6 sm:flex sm:space-x-8">

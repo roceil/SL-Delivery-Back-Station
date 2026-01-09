@@ -1,136 +1,144 @@
 export default defineEventHandler(async (event) => {
+  const supabase = useServiceRoleClient()
   const id = getRouterParam(event, 'id')
 
-  const mockOrders = [
-    {
-      id: 'order1',
-      lineName: '王小明',
-      phone: '0912-345-678',
-      deliveryDate: '2026-01-10',
-      pickupTime: '14:00',
-      luggageCount: 2,
-      status: 'pending',
-      pickupLocation: {
-        id: 'donggang-pier',
-        name: '東港碼頭',
-        address: '屏東縣東港鎮朝安里朝隆路43-5號',
-        area: 'A',
-      },
-      deliveryLocation: {
-        id: 'hostel-beachfront',
-        name: '海景民宿',
-        address: '屏東縣琉球鄉忠孝路18號',
-        area: 'C',
-      },
-      notes: '請小心輕放，內有易碎物品',
-      createdAt: '2026-01-07T10:30:00Z',
-      updatedAt: '2026-01-07T10:30:00Z',
-    },
-    {
-      id: 'order2',
-      lineName: '李小華',
-      phone: '0923-456-789',
-      deliveryDate: '2026-01-11',
-      pickupTime: '10:00',
-      luggageCount: 1,
-      status: 'confirmed',
-      pickupLocation: {
-        id: 'baisha-pier',
-        name: '白沙尾港',
-        address: '屏東縣琉球鄉白沙尾觀光港',
-        area: 'A',
-      },
-      deliveryLocation: {
-        id: 'dive-shop-ocean',
-        name: '小琉球海洋潛水',
-        address: '屏東縣琉球鄉中山路156號',
-        area: 'B',
-      },
-      notes: '',
-      createdAt: '2026-01-07T11:20:00Z',
-      updatedAt: '2026-01-07T11:20:00Z',
-    },
-    {
-      id: 'order3',
-      lineName: '張小美',
-      phone: '0934-567-890',
-      deliveryDate: '2026-01-09',
-      pickupTime: '16:00',
-      luggageCount: 3,
-      status: 'in_transit',
-      pickupLocation: {
-        id: 'donggang-pier',
-        name: '東港碼頭',
-        address: '屏東縣東港鎮朝安里朝隆路43-5號',
-        area: 'A',
-      },
-      deliveryLocation: {
-        id: 'hostel-coral',
-        name: '珊瑚礁民宿',
-        address: '屏東縣琉球鄉和平路56號',
-        area: 'C',
-      },
-      notes: '大型行李箱三件',
-      createdAt: '2026-01-06T15:45:00Z',
-      updatedAt: '2026-01-07T08:30:00Z',
-    },
-    {
-      id: 'order4',
-      lineName: '陳大明',
-      phone: '0945-678-901',
-      deliveryDate: '2026-01-08',
-      pickupTime: '09:00',
-      luggageCount: 2,
-      status: 'delivered',
-      pickupLocation: {
-        id: 'baisha-pier',
-        name: '白沙尾港',
-        address: '屏東縣琉球鄉白沙尾觀光港',
-        area: 'A',
-      },
-      deliveryLocation: {
-        id: 'beauty-cave',
-        name: '美人洞風景區',
-        address: '屏東縣琉球鄉環島公路美人洞',
-        area: 'D',
-      },
-      notes: '',
-      createdAt: '2026-01-05T09:15:00Z',
-      updatedAt: '2026-01-08T11:30:00Z',
-    },
-    {
-      id: 'order5',
-      lineName: '林小芳',
-      phone: '0956-789-012',
-      deliveryDate: '2026-01-12',
-      pickupTime: '13:00',
-      luggageCount: 1,
-      status: 'cancelled',
-      pickupLocation: {
-        id: 'donggang-pier',
-        name: '東港碼頭',
-        address: '屏東縣東港鎮朝安里朝隆路43-5號',
-        area: 'A',
-      },
-      deliveryLocation: {
-        id: 'dive-shop-blue',
-        name: '小琉球藍海潛水',
-        address: '屏東縣琉球鄉三民路85號',
-        area: 'B',
-      },
-      notes: '客戶要求取消',
-      createdAt: '2026-01-07T14:00:00Z',
-      updatedAt: '2026-01-07T15:30:00Z',
-    },
-  ]
+  if (!id) {
+    throw createError({
+      statusCode: 400,
+      message: '缺少訂單 ID',
+    })
+  }
 
-  const order = mockOrders.find(o => o.id === id)
+  // 查詢單一訂單
+  const { data: orderData, error } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      platform_id,
+      platform_type,
+      status,
+      notes,
+      created_at,
+      updated_at,
+      start_point:stations!orders_start_point_fkey (
+        id,
+        name,
+        address,
+        area
+      ),
+      end_point:stations!orders_end_point_fkey (
+        id,
+        name,
+        address,
+        area
+      ),
+      order_status:orders_status (
+        status
+      )
+    `)
+    .eq('id', id)
+    .single()
 
-  if (!order) {
+  if (error || !orderData) {
     throw createError({
       statusCode: 404,
       message: '找不到此訂單',
     })
+  }
+
+  let orderCategory = '未知'
+  let lineName = '未提供'
+  let phone = '未提供'
+  let deliveryDate = null
+  let pickupTime = '-'
+  let luggageCount = 0
+
+  // 根據 platform_type 查詢對應的訂單明細
+  if (orderData.platform_type === 4) {
+    // 散客訂單
+    orderCategory = '散客'
+    const { data: normalOrder, error: normalError } = await supabase
+      .from('normal_orders')
+      .select('departure_date, receive_time, quantity, contacts')
+      .eq('id', orderData.platform_id)
+      .single()
+
+    if (normalError || !normalOrder) {
+      throw createError({
+        statusCode: 404,
+        message: '找不到訂單明細',
+      })
+    }
+
+    const contacts = normalOrder.contacts as { name?: string, phone?: string, lineId?: string } || {}
+    lineName = contacts.name || '未提供'
+    phone = contacts.phone || '未提供'
+    deliveryDate = normalOrder.departure_date
+    pickupTime = normalOrder.receive_time || '-'
+    luggageCount = normalOrder.quantity || 0
+  }
+  else if (orderData.platform_type === 3) {
+    // 同業訂單
+    const { data: netOrder, error: netError } = await supabase
+      .from('net_orders')
+      .select('platform_type, departure_date, quantity, contacts')
+      .eq('id', orderData.platform_id)
+      .single()
+
+    if (netError || !netOrder) {
+      throw createError({
+        statusCode: 404,
+        message: '找不到訂單明細',
+      })
+    }
+
+    // 判斷類別
+    if (netOrder.platform_type === 1) {
+      orderCategory = 'Trip'
+    }
+    else if (netOrder.platform_type === 2) {
+      orderCategory = 'Klook'
+    }
+    else {
+      orderCategory = '合作'
+    }
+
+    const contacts = netOrder.contacts as { name?: string, phone?: string, lineId?: string } || {}
+    lineName = contacts.name || '未提供'
+    phone = contacts.phone || '未提供'
+    deliveryDate = netOrder.departure_date
+    luggageCount = netOrder.quantity || 0
+  }
+
+  // 組合資料
+  const orderStatus = Array.isArray(orderData.order_status) ? orderData.order_status[0] : orderData.order_status
+  const startPoint = Array.isArray(orderData.start_point) ? orderData.start_point[0] : orderData.start_point
+  const endPoint = Array.isArray(orderData.end_point) ? orderData.end_point[0] : orderData.end_point
+
+  const order = {
+    id: orderData.id.toString(),
+    category: orderCategory,
+    lineName,
+    phone,
+    deliveryDate,
+    pickupTime,
+    luggageCount,
+    status: orderStatus?.status || 'pending',
+    pickupLocation: {
+      id: startPoint?.id?.toString() || '',
+      name: startPoint?.name || '',
+      address: startPoint?.address || '',
+      area: startPoint?.area || '',
+    },
+    deliveryLocation: {
+      id: endPoint?.id?.toString() || '',
+      name: endPoint?.name || '',
+      address: endPoint?.address || '',
+      area: endPoint?.area || '',
+    },
+    notes: orderData.notes || '',
+    createdAt: orderData.created_at,
+    updatedAt: orderData.updated_at,
   }
 
   return order

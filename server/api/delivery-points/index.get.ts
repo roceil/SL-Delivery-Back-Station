@@ -1,84 +1,45 @@
 export default defineEventHandler(async (_event) => {
-  // 小琉球行李運送地點資料
-  const deliveryPoints = [
-    {
-      id: 'donggang-pier',
-      name: '東港碼頭',
-      type: '碼頭',
-      storeId: 'DG001',
-      address: '屏東縣東港鎮朝安里朝隆路43-5號',
-      phone: '08-832-5940',
-      openHours: '07:00-17:30',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'baisha-pier',
-      name: '白沙尾港',
-      type: '碼頭',
-      storeId: 'BS001',
-      address: '屏東縣琉球鄉白沙尾觀光港',
-      phone: '08-861-2405',
-      openHours: '24小時',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'hostel-beachfront',
-      name: '海景民宿',
-      type: '民宿',
-      storeId: 'H001',
-      address: '屏東縣琉球鄉忠孝路18號',
-      phone: '08-861-3456',
-      openHours: '08:00-22:00',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'hostel-coral',
-      name: '珊瑚礁民宿',
-      type: '民宿',
-      storeId: 'H002',
-      address: '屏東縣琉球鄉和平路56號',
-      phone: '08-861-2789',
-      openHours: '08:00-22:00',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'dive-shop-ocean',
-      name: '小琉球海洋潛水',
-      type: '潛水店',
-      storeId: 'D001',
-      address: '屏東縣琉球鄉中山路156號',
-      phone: '08-861-3567',
-      openHours: '07:00-18:00',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'dive-shop-blue',
-      name: '小琉球藍海潛水',
-      type: '潛水店',
-      storeId: 'D002',
-      address: '屏東縣琉球鄉三民路85號',
-      phone: '08-861-4678',
-      openHours: '07:00-18:00',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'beauty-cave',
-      name: '美人洞風景區',
-      type: '景點',
-      storeId: 'S001',
-      address: '屏東縣琉球鄉環島公路美人洞',
-      phone: '08-861-2405',
-      openHours: '07:00-17:30',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-  ]
+  const supabase = useServiceRoleClient()
 
-  return deliveryPoints
+  // 從 stations 表取得所有運送點，並 join stations_types 取得類型名稱
+  const { data, error } = await supabase
+    .from('stations')
+    .select(`
+      id,
+      name,
+      address,
+      area,
+      type,
+      latitude,
+      longitude,
+      created_at,
+      stations_types (
+        name
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw createError({
+      statusCode: 500,
+      message: `取得運送點失敗: ${error.message}`,
+    })
+  }
+
+  // 轉換資料格式以符合前端需求
+  return data.map((station) => {
+    const stationType = Array.isArray(station.stations_types) ? station.stations_types[0] : station.stations_types
+
+    return {
+      id: station.id,
+      name: station.name,
+      type: stationType?.name || '未分類',
+      typeId: station.type,
+      address: station.address,
+      area: station.area,
+      latitude: station.latitude,
+      longitude: station.longitude,
+      createdAt: station.created_at,
+    }
+  })
 })

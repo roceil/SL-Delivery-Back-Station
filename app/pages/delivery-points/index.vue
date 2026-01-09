@@ -1,24 +1,86 @@
 <script lang="ts" setup>
+interface ColorScheme {
+  border: string
+  bg: string
+  text: string
+  label: string
+}
+
+interface TypeStat {
+  type: string
+  count: number
+  colors: ColorScheme
+}
+
+interface DeliveryPoint {
+  id: number
+  name: string
+  type: string
+  typeId: number
+  address: string
+  area: string
+  latitude: number | null
+  longitude: number | null
+  createdAt: string
+}
+
 useHead({
-  title: '收件地管理 - 物流管理系統',
+  title: '運送點管理 - 物流管理系統',
 })
 
-const { data: deliveryPoints } = await useFetch('/api/delivery-points')
+const { data: deliveryPoints, refresh } = await useFetch<DeliveryPoint[]>('/api/delivery-points')
 
-async function deleteDeliveryPoint(id: string) {
+// 動態統計各類型數量
+const typeStats = computed<TypeStat[]>(() => {
+  if (!deliveryPoints.value || deliveryPoints.value.length === 0) {
+    return []
+  }
+
+  // 統計每個類型的數量
+  const typeCounts = new Map<string, number>()
+
+  for (const point of deliveryPoints.value) {
+    const type = point.type || '未分類'
+    typeCounts.set(type, (typeCounts.get(type) || 0) + 1)
+  }
+
+  // 顏色配置（輪流使用）
+  const colorSchemes: ColorScheme[] = [
+    { border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-600', label: 'text-blue-500' },
+    { border: 'border-green-200', bg: 'bg-green-50', text: 'text-green-600', label: 'text-green-500' },
+    { border: 'border-purple-200', bg: 'bg-purple-50', text: 'text-purple-600', label: 'text-purple-500' },
+    { border: 'border-orange-200', bg: 'bg-orange-50', text: 'text-orange-600', label: 'text-orange-500' },
+    { border: 'border-pink-200', bg: 'bg-pink-50', text: 'text-pink-600', label: 'text-pink-500' },
+    { border: 'border-indigo-200', bg: 'bg-indigo-50', text: 'text-indigo-600', label: 'text-indigo-500' },
+  ]
+
+  // 將統計結果轉換為陣列並分配顏色
+  return Array.from(typeCounts.entries())
+    .map(([type, count], index): TypeStat => ({
+      type,
+      count,
+      colors: colorSchemes[index % colorSchemes.length]!,
+    }))
+    .sort((a, b) => b.count - a.count) // 依數量排序
+})
+
+async function deleteDeliveryPoint(id: number | undefined) {
+  if (!id)
+    return
+
   // eslint-disable-next-line no-alert
-  if (!confirm('確定要刪除這個收件地嗎？'))
+  if (!confirm('確定要刪除這個運送點嗎？'))
     return
 
   try {
     await $fetch(`/api/delivery-points/${id}`, {
       method: 'DELETE',
     })
-    await refreshCookie('delivery-points')
-    await navigateTo('/delivery-points')
+    await refresh()
   }
   catch (error) {
-    console.error('刪除收件地失敗:', error)
+    console.error('刪除運送點失敗:', error)
+    alert('刪除失敗,請稍後再試')
   }
 }
 </script>
@@ -28,7 +90,7 @@ async function deleteDeliveryPoint(id: string) {
     <div class="px-4 py-5 sm:p-6">
       <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-bold text-gray-900">
-          收件地管理
+          運送點管理
         </h1>
         <NuxtLink
           to="/delivery-points/new"
@@ -39,8 +101,52 @@ async function deleteDeliveryPoint(id: string) {
             focus:outline-none
           "
         >
-          新增收件地
+          新增運送點
         </NuxtLink>
+      </div>
+
+      <!-- 統計資訊 -->
+      <div
+        v-if="deliveryPoints && deliveryPoints.length > 0"
+        class="
+          mt-6 grid grid-cols-1 gap-3 rounded-lg bg-gray-200 px-3 py-4
+          sm:grid-cols-2
+          lg:grid-cols-4
+        "
+      >
+        <!-- 總數統計 -->
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <div class="text-2xl font-bold text-gray-900">
+            {{ deliveryPoints.length }}
+          </div>
+          <div class="text-sm text-gray-500">
+            總運送點數量
+          </div>
+        </div>
+
+        <!-- 動態類型統計 -->
+        <div
+          v-for="stat in typeStats"
+          :key="stat.type"
+          class="rounded-lg border p-4"
+          :class="[
+            stat.colors.border,
+            stat.colors.bg,
+          ]"
+        >
+          <div
+            class="text-2xl font-bold"
+            :class="[stat.colors.text]"
+          >
+            {{ stat.count }}
+          </div>
+          <div
+            class="text-sm"
+            :class="[stat.colors.label]"
+          >
+            {{ stat.type }}運送點
+          </div>
+        </div>
       </div>
 
       <div
@@ -67,10 +173,10 @@ async function deleteDeliveryPoint(id: string) {
           />
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">
-          沒有收件地
+          沒有運送點
         </h3>
         <p class="mt-1 text-sm text-gray-500">
-          開始新增第一個收件地。
+          開始新增第一個運送點。
         </p>
         <div class="mt-6">
           <NuxtLink
@@ -83,7 +189,7 @@ async function deleteDeliveryPoint(id: string) {
               focus:outline-none
             "
           >
-            新增收件地
+            新增運送點
           </NuxtLink>
         </div>
       </div>
@@ -91,7 +197,7 @@ async function deleteDeliveryPoint(id: string) {
       <div
         v-else
         class="
-          ring-opacity-5 overflow-hidden bg-white shadow ring-1 ring-black
+          mt-6 overflow-hidden bg-white shadow ring-1 ring-black
           md:rounded-lg
         "
       >
@@ -105,7 +211,7 @@ async function deleteDeliveryPoint(id: string) {
                   text-gray-500 uppercase
                 "
               >
-                收件地名稱
+                運送點名稱
               </th>
               <th
                 scope="col"
@@ -132,7 +238,7 @@ async function deleteDeliveryPoint(id: string) {
                   text-gray-500 uppercase
                 "
               >
-                聯絡方式
+                區域
               </th>
               <th
                 scope="col"
@@ -141,7 +247,7 @@ async function deleteDeliveryPoint(id: string) {
                   text-gray-500 uppercase
                 "
               >
-                狀態
+                座標
               </th>
               <th
                 scope="col"
@@ -162,26 +268,17 @@ async function deleteDeliveryPoint(id: string) {
                   <div
                     class="
                       flex h-8 w-8 flex-shrink-0 items-center justify-center
-                      rounded-full text-sm font-medium
-                    "
-                    :class="
-                      point.type === '7-11'
-                        ? 'bg-red-100 text-red-600'
-                        : point.type === '全家'
-                          ? 'bg-blue-100 text-blue-600'
-                          : point.type === '萊爾富'
-                            ? 'bg-green-100 text-green-600'
-                            : 'bg-purple-100 text-purple-600'
+                      rounded-full bg-blue-100 text-sm font-medium text-blue-600
                     "
                   >
-                    {{ point.type.charAt(0) }}
+                    📍
                   </div>
                   <div class="ml-4">
                     <div class="text-sm font-medium text-gray-900">
                       {{ point.name }}
                     </div>
                     <div class="text-sm text-gray-500">
-                      {{ point.storeId || '無店鋪編號' }}
+                      ID: {{ point.id }}
                     </div>
                   </div>
                 </div>
@@ -189,17 +286,8 @@ async function deleteDeliveryPoint(id: string) {
               <td class="px-6 py-4 whitespace-nowrap">
                 <span
                   class="
-                    inline-flex rounded-full px-2 text-xs leading-5
-                    font-semibold
-                  "
-                  :class="
-                    point.type === '7-11'
-                      ? 'bg-red-100 text-red-800'
-                      : point.type === '全家'
-                        ? 'bg-blue-100 text-blue-800'
-                        : point.type === '萊爾富'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-purple-100 text-purple-800'
+                    inline-flex rounded-full bg-gray-100 px-2 text-xs leading-5
+                    font-semibold text-gray-800
                   "
                 >
                   {{ point.type }}
@@ -209,27 +297,35 @@ async function deleteDeliveryPoint(id: string) {
                 {{ point.address }}
               </td>
               <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
-                <div v-if="point.phone">
-                  📞 {{ point.phone }}
-                </div>
-                <div v-if="point.openHours">
-                  🕒 {{ point.openHours }}
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
                 <span
+                  v-if="point.area"
                   class="
-                    inline-flex rounded-full px-2 text-xs leading-5
-                    font-semibold
-                  "
-                  :class="
-                    point.status === 'active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
+                    inline-flex rounded-full bg-purple-100 px-2 text-xs
+                    leading-5 font-semibold text-purple-800
                   "
                 >
-                  {{ point.status === 'active' ? '營業中' : '暫停服務' }}
+                  {{ point.area }}
                 </span>
+                <span
+                  v-else
+                  class="text-gray-400"
+                >
+                  -
+                </span>
+              </td>
+              <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
+                <div
+                  v-if="point.latitude && point.longitude"
+                  class="text-xs"
+                >
+                  {{ point.latitude }}, {{ point.longitude }}
+                </div>
+                <div
+                  v-else
+                  class="text-gray-400"
+                >
+                  未設定
+                </div>
               </td>
               <td
                 class="
@@ -254,45 +350,6 @@ async function deleteDeliveryPoint(id: string) {
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <!-- 統計資訊 -->
-      <div
-        v-if="deliveryPoints && deliveryPoints.length > 0"
-        class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-4"
-      >
-        <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <div class="text-2xl font-bold text-gray-900">
-            {{ deliveryPoints.length }}
-          </div>
-          <div class="text-sm text-gray-500">
-            總收件地數量
-          </div>
-        </div>
-        <div class="rounded-lg border border-red-200 bg-red-50 p-4">
-          <div class="text-2xl font-bold text-red-600">
-            {{ deliveryPoints.filter(p => p.type === '7-11').length }}
-          </div>
-          <div class="text-sm text-red-500">
-            7-11 門市
-          </div>
-        </div>
-        <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <div class="text-2xl font-bold text-blue-600">
-            {{ deliveryPoints.filter(p => p.type === '全家').length }}
-          </div>
-          <div class="text-sm text-blue-500">
-            全家便利商店
-          </div>
-        </div>
-        <div class="rounded-lg border border-green-200 bg-green-50 p-4">
-          <div class="text-2xl font-bold text-green-600">
-            {{ deliveryPoints.filter(p => p.status === 'active').length }}
-          </div>
-          <div class="text-sm text-green-500">
-            營業中門市
-          </div>
-        </div>
       </div>
     </div>
   </div>

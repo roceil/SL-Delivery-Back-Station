@@ -1,129 +1,52 @@
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
+  const supabase = useServiceRoleClient()
 
-  const partnerLocations = [
-    {
-      id: 'donggang-pier',
-      name: '東港碼頭',
-      address: '屏東縣東港鎮朝安里朝隆路43-5號',
-      type: 'pier',
-      area: 'A',
-      phone: '08-8332301',
-      openingHours: '06:00 - 18:00',
-      description: '往返小琉球的主要碼頭之一，提供行李托運服務。',
-      features: ['行李托運', '寄物服務', '包裝材料'],
-      notes: '請於開船前 30 分鐘完成行李托運',
-      partnerSince: '2024-01-15',
-      voucherStock: 150,
-    },
-    {
-      id: 'baisha-pier',
-      name: '白沙尾港',
-      address: '屏東縣琉球鄉白沙尾觀光港',
-      type: 'pier',
-      area: 'A',
-      phone: '08-8614615',
-      openingHours: '06:30 - 17:30',
-      description: '小琉球主要港口，提供行李接收和配送服務。',
-      features: ['行李接收', '當日配送', '保管服務'],
-      notes: '島上主要接駁點，配送時間較快',
-      partnerSince: '2024-02-01',
-      voucherStock: 200,
-    },
-    {
-      id: 'dive-shop-ocean',
-      name: '小琉球海洋潛水',
-      address: '屏東縣琉球鄉中山路156號',
-      type: 'dive_shop',
-      area: 'B',
-      phone: '08-8612345',
-      openingHours: '08:00 - 20:00',
-      description: '專業潛水店，提供潛水裝備行李托運服務。',
-      features: ['裝備托運', '裝備保管', '緊急配送'],
-      notes: '可協助處理潛水裝備的特殊包裝需求',
-      partnerSince: '2024-03-10',
-      voucherStock: 80,
-    },
-    {
-      id: 'dive-shop-blue',
-      name: '小琉球藍海潛水',
-      address: '屏東縣琉球鄉三民路85號',
-      type: 'dive_shop',
-      area: 'B',
-      phone: '08-8613456',
-      openingHours: '08:00 - 19:00',
-      description: '提供潛水活動及行李托運服務的專業店家。',
-      features: ['潛水裝備托運', '一般行李', '代收包裹'],
-      notes: '營業時間內皆可收取行李',
-      partnerSince: '2024-03-15',
-      voucherStock: 95,
-    },
-    {
-      id: 'hostel-beachfront',
-      name: '海景民宿',
-      address: '屏東縣琉球鄉忠孝路18號',
-      type: 'hostel',
-      area: 'C',
-      phone: '08-8614567',
-      openingHours: '24 小時',
-      description: '海景第一排民宿，提供住客及非住客行李托運服務。',
-      features: ['24hr 收件', '冷藏保管', '大型行李'],
-      notes: '非住客也可使用行李托運服務',
-      partnerSince: '2024-04-01',
-      voucherStock: 120,
-    },
-    {
-      id: 'hostel-coral',
-      name: '珊瑚礁民宿',
-      address: '屏東縣琉球鄉和平路56號',
-      type: 'hostel',
-      area: 'C',
-      phone: '08-8615678',
-      openingHours: '07:00 - 23:00',
-      description: '位於市區中心的民宿，交通便利。',
-      features: ['市區配送', '代收包裹', '短期保管'],
-      notes: '位置便利，適合作為中轉點',
-      partnerSince: '2024-05-20',
-      voucherStock: 65,
-    },
-    {
-      id: 'beauty-cave',
-      name: '美人洞風景區',
-      address: '屏東縣琉球鄉環島公路美人洞',
-      type: 'attraction',
-      area: 'D',
-      phone: '08-8612501',
-      openingHours: '07:00 - 17:30',
-      description: '小琉球著名景點，提供遊客行李寄放服務。',
-      features: ['短期寄放', '輕便行李', '遊客服務'],
-      notes: '適合遊覽時暫時寄放隨身物品',
-      partnerSince: '2024-06-01',
-      voucherStock: 50,
-    },
-    {
-      id: 'vase-rock',
-      name: '花瓶岩',
-      address: '屏東縣琉球鄉花瓶岩',
-      type: 'attraction',
-      area: 'D',
-      phone: '08-8613502',
-      openingHours: '全天開放',
-      description: '小琉球地標景點，設有行李寄放處。',
-      features: ['景點寄放', '拍照友善', '臨時保管'],
-      notes: '遊覽景點時可暫存行李，輕鬆拍照',
-      partnerSince: '2024-06-15',
-      voucherStock: 40,
-    },
-  ]
-
-  const location = partnerLocations.find(l => l.id === id)
-
-  if (!location) {
+  if (!id) {
     throw createError({
-      statusCode: 404,
-      message: '找不到此合作地點',
+      statusCode: 400,
+      message: '缺少商家 ID',
     })
   }
 
-  return location
+  // 查詢商家，並加載類型資訊
+  const { data: merchant, error } = await supabase
+    .from('merchants')
+    .select(`
+      *,
+      merchants_types (
+        id,
+        name
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error || !merchant) {
+    throw createError({
+      statusCode: 404,
+      message: '找不到此商家',
+    })
+  }
+
+  // 格式化回傳資料
+  return {
+    id: merchant.id,
+    name: merchant.name,
+    contactPerson: merchant.contact_person,
+    phone: merchant.phone,
+    email: merchant.email,
+    address: merchant.address,
+    type: merchant.types,
+    typeName: merchant.merchants_types?.name || '',
+    area: merchant.address?.includes('A') ? 'A' : merchant.address?.includes('B') ? 'B' : merchant.address?.includes('C') ? 'C' : 'D',
+    isActive: merchant.is_active,
+    isCollaborate: merchant.is_collaborate,
+    voucherId: merchant.voucher_id,
+    usedCounts: merchant.used_counts,
+    maxUsageCounts: merchant.max_usage_counts,
+    remarks: merchant.remarks,
+    createdAt: merchant.created_at,
+    updatedAt: merchant.updated_at,
+  }
 })
