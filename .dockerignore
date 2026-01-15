@@ -1,0 +1,54 @@
+# 依賴
+node_modules
+.pnpm-store
+
+# Nuxt 開發檔案
+.nuxt
+.output
+.nitro
+dist
+
+# 日誌
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 環境變數檔案
+.env
+.env.*
+!.env.example
+
+# 編輯器
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 作業系統
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# 測試
+coverage
+.nyc_output
+
+# CI/CD
+.github
+
+# 文檔
+README.md
+CLAUDE.md
+*.md
+
+# 其他開發工具
+.eslintrc*
+.prettierrc*
+tsconfig.json
