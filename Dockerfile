@@ -51,6 +51,9 @@ RUN adduser --system --uid 1001 nuxt
 COPY --from=builder --chown=nuxt:nodejs /app/.output ./.output
 COPY --from=builder --chown=nuxt:nodejs /app/package.json ./package.json
 
+# 建立 logs 目錄並設定權限（用於開發環境，生產環境使用 Cloud Logging）
+RUN mkdir -p /app/logs && chown -R nuxt:nodejs /app/logs
+
 # 切換到非 root 使用者
 USER nuxt
 

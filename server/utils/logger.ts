@@ -1,36 +1,42 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+// 在生產環境中，Cloud Run 會自動從 stdout/stderr 收集日誌
+const isProduction = process.env.NODE_ENV === 'production'
 const logsDir = path.join(process.cwd(), 'logs')
 
-// 確保 logs 目錄存在
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true })
+// 只在開發環境創建 logs 目錄
+if (!isProduction) {
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true })
+  }
 }
 
 function formatLogMessage(level: string, message: string, data?: any): string {
   const timestamp = new Date().toISOString()
   const dataStr = data ? ` ${JSON.stringify(data)}` : ''
-  return `[${timestamp}] [${level}] ${message}${dataStr}\n`
+  return `[${timestamp}] [${level}] ${message}${dataStr}`
 }
 
 function writeLog(level: string, message: string, data?: any) {
   const logMessage = formatLogMessage(level, message, data)
-  const logFile = path.join(logsDir, `print-service-${new Date().toISOString().split('T')[0]}.log`)
 
-  // 寫入檔案
-  fs.appendFile(logFile, logMessage, (err) => {
-    if (err) {
-      console.error('寫入日誌失敗:', err)
-    }
-  })
+  // 在開發環境寫入檔案，生產環境只輸出到 console
+  if (!isProduction) {
+    const logFile = path.join(logsDir, `print-service-${new Date().toISOString().split('T')[0]}.log`)
+    fs.appendFile(logFile, logMessage + '\n', (err) => {
+      if (err) {
+        console.error('寫入日誌失敗:', err)
+      }
+    })
+  }
 
-  // 同時輸出到 console
+  // 輸出到 console（Cloud Run 會自動收集）
   if (level === 'ERROR') {
-    console.error(message, data)
+    console.error(logMessage, data)
   }
   else {
-    console.log(message, data)
+    console.log(logMessage, data)
   }
 }
 
