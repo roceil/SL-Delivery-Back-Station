@@ -2,17 +2,18 @@
 // 需要搭配本地列印服務 (print-service/server.js)
 
 export function useSilentPrint() {
-  const PRINT_SERVICE_URL = 'http://localhost:9100'
+  const PRINT_SERVICE_URL = '' // 使用同域的 Nuxt server API
 
   /**
    * 檢查列印服務是否運行
    */
   async function checkPrintService(): Promise<boolean> {
     try {
-      const response = await fetch(`${PRINT_SERVICE_URL}/health`, {
+      const response = await fetch(`${PRINT_SERVICE_URL}/api/print/health`, {
         method: 'GET',
       })
-      return response.ok
+      const data = await response.json()
+      return data.status === 'ok'
     }
     catch {
       return false
@@ -24,7 +25,7 @@ export function useSilentPrint() {
    */
   async function getPrinters(): Promise<string[]> {
     try {
-      const response = await fetch(`${PRINT_SERVICE_URL}/printers`)
+      const response = await fetch(`${PRINT_SERVICE_URL}/api/print/printers`)
       const data = await response.json()
       return data.printers ? data.printers.split('\n').filter(Boolean) : []
     }
@@ -41,8 +42,6 @@ export function useSilentPrint() {
     canvas: HTMLCanvasElement,
     options?: {
       printerName?: string
-      width?: number
-      height?: number
     },
   ): Promise<boolean> {
     try {
@@ -56,7 +55,7 @@ export function useSilentPrint() {
       const dataUrl = canvas.toDataURL('image/png')
 
       // 發送列印請求
-      const response = await fetch(`${PRINT_SERVICE_URL}/print`, {
+      const response = await fetch(`${PRINT_SERVICE_URL}/api/print`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -64,14 +63,17 @@ export function useSilentPrint() {
         body: JSON.stringify({
           dataUrl,
           printerName: options?.printerName,
-          width: options?.width,
-          height: options?.height,
         }),
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || '列印失敗')
+        throw new Error(error.message || '列印失敗')
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.message || '列印失敗')
       }
 
       return true
@@ -112,8 +114,6 @@ export function useSilentPrint() {
       // 發送列印請求
       return await printCanvas(existingCanvas, {
         printerName,
-        width: template.width,
-        height: template.height,
       })
     }
     catch (error) {

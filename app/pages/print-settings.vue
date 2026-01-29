@@ -225,17 +225,30 @@ const fieldOptions = [
 
       <!-- 模板資訊與元素屬性 -->
       <div class="flex w-full gap-6">
-          <!-- 模板資訊 -->
-          <div class="w-1/2 rounded-lg bg-white p-6 shadow">
-            <h2 class="mb-4 text-lg font-semibold text-gray-900">
-              模板資訊
-            </h2>
-            <div class="space-y-3">
+        <!-- 模板資訊 -->
+        <div class="w-1/2 rounded-lg bg-white p-6 shadow">
+          <h2 class="mb-4 text-lg font-semibold text-gray-900">
+            模板資訊
+          </h2>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">模板名稱</label>
+              <input
+                v-model="printSettingsStore.currentTemplate.name"
+                type="text"
+                class="
+                  mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                  focus:border-blue-500 focus:ring-blue-500
+                  sm:text-sm
+                "
+              >
+            </div>
+            <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-sm font-medium text-gray-700">模板名稱</label>
+                <label class="block text-sm font-medium text-gray-700">寬度 (mm)</label>
                 <input
-                  v-model="printSettingsStore.currentTemplate.name"
-                  type="text"
+                  v-model.number="printSettingsStore.currentTemplate.width"
+                  type="number"
                   class="
                     mt-1 block w-full rounded-md border-gray-300 shadow-sm
                     focus:border-blue-500 focus:ring-blue-500
@@ -243,11 +256,90 @@ const fieldOptions = [
                   "
                 >
               </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">高度 (mm)</label>
+                <input
+                  v-model.number="printSettingsStore.currentTemplate.height"
+                  type="number"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 元素屬性 -->
+        <div
+          v-if="printSettingsStore.selectedElement"
+          class="w-1/2 rounded-lg bg-white p-6 shadow"
+        >
+          <h2 class="mb-4 text-lg font-semibold text-gray-900">
+            元素屬性
+          </h2>
+          <div class="space-y-4">
+            <!-- Common Properties -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700">元素類型</label>
+              <input
+                :value="printSettingsStore.selectedElement.type"
+                type="text"
+                disabled
+                class="
+                  mt-1 block w-full rounded-md border-gray-300 bg-gray-50
+                  shadow-sm
+                  sm:text-sm
+                "
+              >
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">X 位置 (mm)</label>
+                <input
+                  :value="printSettingsStore.selectedElement.x.toFixed(1)"
+                  type="number"
+                  step="0.1"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                  @input="printSettingsStore.updateElement(
+                    printSettingsStore.selectedElement!.id,
+                    { x: parseFloat(($event.target as HTMLInputElement).value) },
+                  )"
+                >
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Y 位置 (mm)</label>
+                <input
+                  :value="printSettingsStore.selectedElement.y.toFixed(1)"
+                  type="number"
+                  step="0.1"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                  @input="printSettingsStore.updateElement(
+                    printSettingsStore.selectedElement!.id,
+                    { y: parseFloat(($event.target as HTMLInputElement).value) },
+                  )"
+                >
+              </div>
+            </div>
+
+            <!-- QR Code Properties -->
+            <template v-if="printSettingsStore.selectedElement.type === 'qrcode'">
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-sm font-medium text-gray-700">寬度 (mm)</label>
                   <input
-                    v-model.number="printSettingsStore.currentTemplate.width"
+                    v-model.number="printSettingsStore.selectedElement.width"
                     type="number"
                     class="
                       mt-1 block w-full rounded-md border-gray-300 shadow-sm
@@ -259,7 +351,7 @@ const fieldOptions = [
                 <div>
                   <label class="block text-sm font-medium text-gray-700">高度 (mm)</label>
                   <input
-                    v-model.number="printSettingsStore.currentTemplate.height"
+                    v-model.number="printSettingsStore.selectedElement.height"
                     type="number"
                     class="
                       mt-1 block w-full rounded-md border-gray-300 shadow-sm
@@ -269,299 +361,206 @@ const fieldOptions = [
                   >
                 </div>
               </div>
-            </div>
-          </div>
 
-          <!-- 元素屬性 -->
-          <div
-            v-if="printSettingsStore.selectedElement"
-            class="w-1/2 rounded-lg bg-white p-6 shadow"
-          >
-            <h2 class="mb-4 text-lg font-semibold text-gray-900">
-              元素屬性
-            </h2>
-            <div class="space-y-4">
-              <!-- Common Properties -->
               <div>
-                <label class="block text-sm font-medium text-gray-700">元素類型</label>
-                <input
-                  :value="printSettingsStore.selectedElement.type"
-                  type="text"
-                  disabled
+                <label class="block text-sm font-medium text-gray-700">資料欄位</label>
+                <select
+                  v-model="printSettingsStore.selectedElement.field"
                   class="
-                    mt-1 block w-full rounded-md border-gray-300 bg-gray-50
-                    shadow-sm
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+                  <option
+                    v-for="option in fieldOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+            </template>
+
+            <!-- Text Properties -->
+            <template v-if="printSettingsStore.selectedElement.type === 'text'">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">字體大小 (pt)</label>
+                <input
+                  v-model.number="printSettingsStore.selectedElement.fontSize"
+                  type="number"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
                     sm:text-sm
                   "
                 >
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">X 位置 (mm)</label>
-                  <input
-                    :value="printSettingsStore.selectedElement.x.toFixed(1)"
-                    type="number"
-                    step="0.1"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                    @input="printSettingsStore.updateElement(
-                      printSettingsStore.selectedElement!.id,
-                      { x: parseFloat(($event.target as HTMLInputElement).value) },
-                    )"
-                  >
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">Y 位置 (mm)</label>
-                  <input
-                    :value="printSettingsStore.selectedElement.y.toFixed(1)"
-                    type="number"
-                    step="0.1"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                    @input="printSettingsStore.updateElement(
-                      printSettingsStore.selectedElement!.id,
-                      { y: parseFloat(($event.target as HTMLInputElement).value) },
-                    )"
-                  >
-                </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">字體粗細</label>
+                <select
+                  v-model="printSettingsStore.selectedElement.fontWeight"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+                  <option value="normal">
+                    正常
+                  </option>
+                  <option value="semibold">
+                    半粗體
+                  </option>
+                  <option value="bold">
+                    粗體
+                  </option>
+                </select>
               </div>
 
-              <!-- QR Code Properties -->
-              <template v-if="printSettingsStore.selectedElement.type === 'qrcode'">
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700">寬度 (mm)</label>
-                    <input
-                      v-model.number="printSettingsStore.selectedElement.width"
-                      type="number"
-                      class="
-                        mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                        focus:border-blue-500 focus:ring-blue-500
-                        sm:text-sm
-                      "
-                    >
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700">高度 (mm)</label>
-                    <input
-                      v-model.number="printSettingsStore.selectedElement.height"
-                      type="number"
-                      class="
-                        mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                        focus:border-blue-500 focus:ring-blue-500
-                        sm:text-sm
-                      "
-                    >
-                  </div>
-                </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">對齊方式</label>
+                <select
+                  v-model="printSettingsStore.selectedElement.align"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+                  <option value="left">
+                    靠左
+                  </option>
+                  <option value="center">
+                    置中
+                  </option>
+                  <option value="right">
+                    靠右
+                  </option>
+                </select>
+              </div>
 
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">資料欄位</label>
-                  <select
-                    v-model="printSettingsStore.selectedElement.field"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
+              <div>
+                <label class="block text-sm font-medium text-gray-700">文字顏色</label>
+                <input
+                  v-model="printSettingsStore.selectedElement.color"
+                  type="color"
+                  class="
+                    mt-1 block h-10 w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                  "
+                >
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">資料欄位</label>
+                <select
+                  v-model="printSettingsStore.selectedElement.field"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+                  <option value="">
+                    無（僅顯示標籤）
+                  </option>
+                  <option
+                    v-for="option in fieldOptions"
+                    :key="option.value"
+                    :value="option.value"
                   >
-                    <option
-                      v-for="option in fieldOptions"
-                      :key="option.value"
-                      :value="option.value"
-                    >
-                      {{ option.label }}
-                    </option>
-                  </select>
-                </div>
-              </template>
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
 
-              <!-- Text Properties -->
-              <template v-if="printSettingsStore.selectedElement.type === 'text'">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">字體大小 (pt)</label>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">固定標籤</label>
+                <input
+                  v-model="printSettingsStore.selectedElement.label"
+                  type="text"
+                  placeholder="例如：# 或 件行李"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+                <p class="mt-1 text-xs text-gray-500">
+                  標籤會顯示在欄位值之前或之後
+                </p>
+              </div>
+
+              <div v-if="printSettingsStore.selectedElement.label">
+                <label class="block text-sm font-medium text-gray-700">標籤位置</label>
+                <select
+                  v-model="printSettingsStore.selectedElement.labelPosition"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+                  <option value="before">
+                    在欄位值之前（例如：#123）
+                  </option>
+                  <option value="after">
+                    在欄位值之後（例如：2件行李）
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="flex items-center gap-2">
                   <input
-                    v-model.number="printSettingsStore.selectedElement.fontSize"
-                    type="number"
+                    v-model="printSettingsStore.selectedElement.badge"
+                    type="checkbox"
                     class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
+                      rounded border-gray-300 text-blue-600
+                      focus:ring-blue-500
                     "
                   >
-                </div>
+                  <span class="text-sm font-medium text-gray-700">顯示為膠囊徽章</span>
+                </label>
+                <p class="mt-1 text-xs text-gray-500">
+                  以黑底白字的圓角膠囊樣式顯示文字
+                </p>
+              </div>
+            </template>
 
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">字體粗細</label>
-                  <select
-                    v-model="printSettingsStore.selectedElement.fontWeight"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                  >
-                    <option value="normal">
-                      正常
-                    </option>
-                    <option value="semibold">
-                      半粗體
-                    </option>
-                    <option value="bold">
-                      粗體
-                    </option>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">對齊方式</label>
-                  <select
-                    v-model="printSettingsStore.selectedElement.align"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                  >
-                    <option value="left">
-                      靠左
-                    </option>
-                    <option value="center">
-                      置中
-                    </option>
-                    <option value="right">
-                      靠右
-                    </option>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">文字顏色</label>
-                  <input
-                    v-model="printSettingsStore.selectedElement.color"
-                    type="color"
-                    class="
-                      mt-1 block h-10 w-full rounded-md border-gray-300
-                      shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                    "
-                  >
-                </div>
-
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">資料欄位</label>
-                  <select
-                    v-model="printSettingsStore.selectedElement.field"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                  >
-                    <option value="">
-                      無（僅顯示標籤）
-                    </option>
-                    <option
-                      v-for="option in fieldOptions"
-                      :key="option.value"
-                      :value="option.value"
-                    >
-                      {{ option.label }}
-                    </option>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">固定標籤</label>
-                  <input
-                    v-model="printSettingsStore.selectedElement.label"
-                    type="text"
-                    placeholder="例如：# 或 件行李"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                  >
-                  <p class="mt-1 text-xs text-gray-500">
-                    標籤會顯示在欄位值之前或之後
-                  </p>
-                </div>
-
-                <div v-if="printSettingsStore.selectedElement.label">
-                  <label class="block text-sm font-medium text-gray-700">標籤位置</label>
-                  <select
-                    v-model="printSettingsStore.selectedElement.labelPosition"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                  >
-                    <option value="before">
-                      在欄位值之前（例如：#123）
-                    </option>
-                    <option value="after">
-                      在欄位值之後（例如：2件行李）
-                    </option>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="flex items-center gap-2">
-                    <input
-                      v-model="printSettingsStore.selectedElement.badge"
-                      type="checkbox"
-                      class="
-                        rounded border-gray-300 text-blue-600
-                        focus:ring-blue-500
-                      "
-                    >
-                    <span class="text-sm font-medium text-gray-700">顯示為膠囊徽章</span>
-                  </label>
-                  <p class="mt-1 text-xs text-gray-500">
-                    以黑底白字的圓角膠囊樣式顯示文字
-                  </p>
-                </div>
-              </template>
-
-              <!-- Divider Properties -->
-              <template v-if="printSettingsStore.selectedElement.type === 'divider'">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700">長度 (mm)</label>
-                  <input
-                    v-model.number="printSettingsStore.selectedElement.width"
-                    type="number"
-                    class="
-                      mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                      focus:border-blue-500 focus:ring-blue-500
-                      sm:text-sm
-                    "
-                  >
-                </div>
-              </template>
-            </div>
+            <!-- Divider Properties -->
+            <template v-if="printSettingsStore.selectedElement.type === 'divider'">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">長度 (mm)</label>
+                <input
+                  v-model.number="printSettingsStore.selectedElement.width"
+                  type="number"
+                  class="
+                    mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                    focus:border-blue-500 focus:ring-blue-500
+                    sm:text-sm
+                  "
+                >
+              </div>
+            </template>
           </div>
+        </div>
 
-          <!-- 無選取元素時顯示 -->
-          <div
-            v-else
-            class="
-              flex w-1/2 items-center justify-center rounded-lg bg-white p-6
-              shadow
-            "
-          >
-            <p class="text-center font-bold text-gray-500">
-              點擊元素以編輯其屬性
-            </p>
-          </div>
+        <!-- 無選取元素時顯示 -->
+        <div
+          v-else
+          class="
+            flex w-1/2 items-center justify-center rounded-lg bg-white p-6
+            shadow
+          "
+        >
+          <p class="text-center font-bold text-gray-500">
+            點擊元素以編輯其屬性
+          </p>
+        </div>
       </div>
 
       <!-- 使用說明 -->
@@ -593,15 +592,11 @@ const fieldOptions = [
                 <li>
                   確定調整後，請修改
                   <code
-                    class="
-                      rounded bg-blue-100 px-1 py-0.5 font-mono text-xs
-                    "
+                    class="rounded bg-blue-100 px-1 py-0.5 font-mono text-xs"
                   >printSettings.ts</code>
                   中的
                   <code
-                    class="
-                      rounded bg-blue-100 px-1 py-0.5 font-mono text-xs
-                    "
+                    class="rounded bg-blue-100 px-1 py-0.5 font-mono text-xs"
                   >defaultTemplate</code>
                 </li>
               </ul>

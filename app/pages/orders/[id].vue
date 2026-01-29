@@ -136,13 +136,10 @@ async function handleSilentPrint() {
     }
 
     // 執行靜默列印
-    await printCanvas(canvas, {
-      width: printSettingsStore.currentTemplate.width,
-      height: printSettingsStore.currentTemplate.height,
-    })
+    await printCanvas(canvas)
 
     // eslint-disable-next-line no-alert
-    alert('列印成功！')
+    // alert('列印成功！')
   }
   catch (error: any) {
     console.error('靜默列印失敗:', error)
