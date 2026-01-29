@@ -1,23 +1,14 @@
-// 列印 API - 代理到獨立列印服務
-const PRINT_SERVICE_URL = 'http://localhost:9100'
+// ⚠️ 此 API 已廢棄
+// 列印功能已改為前端直接連接本地列印服務 (localhost:9100)
+// Cloud Run 無法訪問用戶本地的印表機，因此此代理 API 無法正常工作
+//
+// 如果未來需要恢復此功能，請考慮：
+// 1. 使用 WebSocket 讓用戶機器上的服務主動連接 Cloud Run
+// 2. 或使用完全本地部署的方案
 
-export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-
-  try {
-    // 轉發請求到獨立列印服務
-    const response = await $fetch(`${PRINT_SERVICE_URL}/api/print`, {
-      method: 'POST',
-      body,
-    })
-
-    return response
-  }
-  catch (error: any) {
-    logger.error('轉發列印請求失敗', { error: error.message })
-    throw createError({
-      statusCode: error.statusCode || 500,
-      message: error.message || '列印服務連線失敗',
-    })
-  }
+export default defineEventHandler(async () => {
+  throw createError({
+    statusCode: 410,
+    message: '此 API 已廢棄。列印功能請確保本地列印服務 (localhost:9100) 正在運行。',
+  })
 })

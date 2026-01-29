@@ -2,7 +2,9 @@
 // 需要搭配本地列印服務 (print-service/server.js)
 
 export function useSilentPrint() {
-  const PRINT_SERVICE_URL = '' // 使用同域的 Nuxt server API
+  // 直接連接到本地列印服務（用戶機器上的 localhost:9100）
+  // 不經過 Cloud Run，因為 Cloud Run 無法訪問用戶的本地印表機
+  const PRINT_SERVICE_URL = 'http://localhost:9100'
 
   /**
    * 檢查列印服務是否運行
