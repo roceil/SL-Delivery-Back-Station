@@ -55,17 +55,23 @@ onMounted(async () => {
 
 // 一般列印（顯示預覽）
 function handlePrint() {
+  // 取得 canvas 元素
+  const canvas = document.querySelector('.print-canvas canvas') as HTMLCanvasElement
+
+  if (!canvas) {
+    // eslint-disable-next-line no-alert
+    alert('找不到列印內容，請重新整理頁面')
+    return
+  }
+
+  // 將 canvas 轉換為高解析度圖片
+  const dataUrl = canvas.toDataURL('image/png')
+
   // 動態設定列印樣式
   const template = printSettingsStore.currentTemplate
-
-  // 計算精確的像素尺寸（與 PrintCanvas 組件的 mmToPx 一致）
-  // Canvas 使用 scale=3 來提高解析度，但列印時要縮放回實際尺寸
-  const displayScale = 1 // 列印時的實際顯示比例
   const mmToPx = 3.7795275591 // 1mm = 3.78px at 96 DPI
-
-  // 列印時的顯示尺寸（實際物理尺寸）
-  const displayWidthPx = template.width * displayScale * mmToPx
-  const displayHeightPx = template.height * displayScale * mmToPx
+  const displayWidthPx = template.width * mmToPx
+  const displayHeightPx = template.height * mmToPx
 
   const style = document.createElement('style')
   style.id = 'dynamic-print-style'
@@ -76,39 +82,48 @@ function handlePrint() {
         margin: 0;
       }
 
-      /* 確保頁面精確尺寸 */
       html, body {
         margin: 0 !important;
         padding: 0 !important;
         width: ${displayWidthPx}px !important;
         height: ${displayHeightPx}px !important;
-        max-width: ${displayWidthPx}px !important;
-        max-height: ${displayHeightPx}px !important;
         overflow: hidden !important;
       }
 
-      /* 確保 print-canvas 容器精確尺寸 */
+      /* 隱藏原本的 canvas */
       .print-canvas {
-        width: ${displayWidthPx}px !important;
-        height: ${displayHeightPx}px !important;
-        max-width: ${displayWidthPx}px !important;
-        max-height: ${displayHeightPx}px !important;
-        overflow: hidden !important;
-        transform-origin: top left;
+        display: none !important;
       }
 
-      /* Canvas 縮放：從高解析度縮放回實際尺寸 */
-      .print-canvas canvas {
+      /* 顯示列印用的圖片 */
+      .print-image-container {
+        display: block !important;
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
         width: ${displayWidthPx}px !important;
         height: ${displayHeightPx}px !important;
-        max-width: ${displayWidthPx}px !important;
-        max-height: ${displayHeightPx}px !important;
-        transform-origin: top left;
+      }
+
+      .print-image-container img {
+        display: block !important;
+        width: ${displayWidthPx}px !important;
+        height: ${displayHeightPx}px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+    }
+
+    @media screen {
+      .print-image-container {
+        display: none !important;
       }
     }
   `
 
-  // 移除舊的動態樣式（如果存在）
+  // 移除舊的動態樣式
   const oldStyle = document.getElementById('dynamic-print-style')
   if (oldStyle) {
     oldStyle.remove()
@@ -117,10 +132,30 @@ function handlePrint() {
   // 添加新的動態樣式
   document.head.appendChild(style)
 
-  // 延遲一下確保樣式已套用
-  setTimeout(() => {
-    window.print()
-  }, 100)
+  // 創建或取得圖片容器
+  let imgContainer = document.getElementById('print-image-container')
+  if (!imgContainer) {
+    imgContainer = document.createElement('div')
+    imgContainer.id = 'print-image-container'
+    imgContainer.className = 'print-image-container'
+    document.body.appendChild(imgContainer)
+  }
+
+  // 創建圖片元素
+  const img = document.createElement('img')
+  img.src = dataUrl
+  img.alt = 'Print Content'
+
+  // 清空並添加圖片
+  imgContainer.innerHTML = ''
+  imgContainer.appendChild(img)
+
+  // 等待圖片載入後再列印
+  img.onload = () => {
+    setTimeout(() => {
+      window.print()
+    }, 100)
+  }
 }
 
 // 靜默列印（跳過預覽）
@@ -222,7 +257,7 @@ function formatTime(timeString?: string | null) {
       <PrintCanvas
         :template="printSettingsStore.currentTemplate"
         :sample-data="order"
-        :scale="3"
+        :scale="6"
       />
     </div>
 

@@ -63,4 +63,5 @@ ENV HOST=0.0.0.0
 EXPOSE 8080
 
 # 啟動 Nuxt 應用程式
+# PORT 和 HOST 環境變數會自動被 Nitro 讀取
 CMD ["node", ".output/server/index.mjs"]

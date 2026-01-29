@@ -11,7 +11,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  scale: 3,
+  scale: 6,
   interactive: false,
 })
 

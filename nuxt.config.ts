@@ -64,6 +64,14 @@ export default defineNuxtConfig({
 
   compatibilityDate: '2025-08-01',
 
+  nitro: {
+    preset: 'node-server',
+    // 確保 Nitro 從環境變數讀取 PORT
+    experimental: {
+      envExpansion: true,
+    },
+  },
+
   runtimeConfig: {
     // 伺服器端環境變數（不會暴露給客戶端）
     // Nuxt 會自動從 .env 檔案讀取對應的環境變數
