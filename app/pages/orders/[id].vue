@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import QrcodeVue from 'qrcode.vue'
+import { usePrintSettingsStore } from '~/stores/printSettings'
 
 interface Location {
   id: string
@@ -40,8 +41,114 @@ if (error.value) {
   })
 }
 
+// 載入列印設定
+const printSettingsStore = usePrintSettingsStore()
+const { checkPrintService, printCanvas } = useSilentPrint()
+
+// 檢查靜默列印服務狀態
+const silentPrintAvailable = ref(false)
+
+onMounted(async () => {
+  // 檢查靜默列印服務是否可用
+  silentPrintAvailable.value = await checkPrintService()
+})
+
+// 一般列印（顯示預覽）
 function handlePrint() {
-  window.print()
+  // 動態設定列印樣式
+  const template = printSettingsStore.currentTemplate
+
+  // 計算精確的像素尺寸（與 PrintCanvas 組件的 mmToPx 一致）
+  // Canvas 使用 scale=3 來提高解析度，但列印時要縮放回實際尺寸
+  const displayScale = 1 // 列印時的實際顯示比例
+  const mmToPx = 3.7795275591 // 1mm = 3.78px at 96 DPI
+
+  // 列印時的顯示尺寸（實際物理尺寸）
+  const displayWidthPx = template.width * displayScale * mmToPx
+  const displayHeightPx = template.height * displayScale * mmToPx
+
+  const style = document.createElement('style')
+  style.id = 'dynamic-print-style'
+  style.textContent = `
+    @media print {
+      @page {
+        size: ${template.width}mm ${template.height}mm;
+        margin: 0;
+      }
+
+      /* 確保頁面精確尺寸 */
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${displayWidthPx}px !important;
+        height: ${displayHeightPx}px !important;
+        max-width: ${displayWidthPx}px !important;
+        max-height: ${displayHeightPx}px !important;
+        overflow: hidden !important;
+      }
+
+      /* 確保 print-canvas 容器精確尺寸 */
+      .print-canvas {
+        width: ${displayWidthPx}px !important;
+        height: ${displayHeightPx}px !important;
+        max-width: ${displayWidthPx}px !important;
+        max-height: ${displayHeightPx}px !important;
+        overflow: hidden !important;
+        transform-origin: top left;
+      }
+
+      /* Canvas 縮放：從高解析度縮放回實際尺寸 */
+      .print-canvas canvas {
+        width: ${displayWidthPx}px !important;
+        height: ${displayHeightPx}px !important;
+        max-width: ${displayWidthPx}px !important;
+        max-height: ${displayHeightPx}px !important;
+        transform-origin: top left;
+      }
+    }
+  `
+
+  // 移除舊的動態樣式（如果存在）
+  const oldStyle = document.getElementById('dynamic-print-style')
+  if (oldStyle) {
+    oldStyle.remove()
+  }
+
+  // 添加新的動態樣式
+  document.head.appendChild(style)
+
+  // 延遲一下確保樣式已套用
+  setTimeout(() => {
+    window.print()
+  }, 100)
+}
+
+// 靜默列印（跳過預覽）
+async function handleSilentPrint() {
+  try {
+    // 取得 canvas 元素
+    const canvas = document.querySelector('.print-canvas canvas') as HTMLCanvasElement
+
+    if (!canvas) {
+      // eslint-disable-next-line no-alert
+      alert('找不到列印內容，請重新整理頁面')
+      return
+    }
+
+    // 執行靜默列印
+    await printCanvas(canvas, {
+      width: printSettingsStore.currentTemplate.width,
+      height: printSettingsStore.currentTemplate.height,
+    })
+
+    // eslint-disable-next-line no-alert
+    alert('列印成功！')
+  }
+  catch (error: any) {
+    console.error('靜默列印失敗:', error)
+    // eslint-disable-next-line no-alert
+    alert(`列印失敗：${error.message || '未知錯誤'}`)
+  }
 }
 
 const statusConfig = {
@@ -72,7 +179,10 @@ function getCategoryColor(category: string) {
   return categoryConfig[category as keyof typeof categoryConfig]?.color || 'bg-gray-100 text-gray-800'
 }
 
-function formatDateTime(dateString: string) {
+function formatDateTime(dateString?: string | null) {
+  if (!dateString)
+    return '-'
+
   return new Date(dateString).toLocaleString('zh-TW', {
     year: 'numeric',
     month: '2-digit',
@@ -82,13 +192,17 @@ function formatDateTime(dateString: string) {
   })
 }
 
-function formatDate(dateString: string) {
+function formatDate(dateString?: string | null) {
+  if (!dateString)
+    return '-'
+
   return new Date(dateString).toLocaleDateString('zh-TW')
 }
 
-function formatTime(timeString: string) {
+function formatTime(timeString?: string | null) {
   if (!timeString || timeString === '-')
     return '-'
+
   // 將 hh:mm:ss 格式轉換為 hh:mm
   return timeString.slice(0, 5)
 }
@@ -98,70 +212,21 @@ function formatTime(timeString: string) {
   <div>
     <!-- Print Card Layout (Only visible when printing) -->
     <div
-      v-if="order"
-      class="hidden print:block"
-      style="width: 85mm; height: 54mm; padding: 4mm; box-sizing: border-box;"
+      v-if="order && printSettingsStore"
+      class="
+        print-canvas hidden
+        print:m-0 print:block print:overflow-hidden print:p-0
+      "
+      :style="{
+        maxWidth: '100vw',
+        maxHeight: '100vh',
+      }"
     >
-      <div class="flex h-full gap-3">
-        <!-- Left: QR Code -->
-        <div class="flex flex-shrink-0 items-center">
-          <QrcodeVue
-            :value="order.id"
-            :size="160"
-            level="H"
-          />
-        </div>
-
-        <!-- Right: Order Info -->
-        <div
-          class="flex flex-1 flex-col justify-between text-[9px] leading-tight"
-        >
-          <!-- Top: Order ID & Status -->
-          <div class="border-b border-gray-300 pb-1">
-            <div class="font-bold">
-              #{{ order.id }}
-            </div>
-            <div class="text-[8px]">
-              {{ getStatusText(order.status) }}
-            </div>
-          </div>
-
-          <!-- Customer Info -->
-          <div class="border-b border-gray-300 py-1">
-            <div class="font-semibold">
-              {{ order.lineName }}
-            </div>
-            <div class="text-[8px]">
-              {{ order.phone }}
-            </div>
-          </div>
-
-          <!-- Locations -->
-          <div class="flex-1 py-1">
-            <div class="mb-1">
-              <div class="text-[8px] text-gray-600">
-                起始
-              </div>
-              <div class="font-medium">
-                {{ order.pickupLocation.name }}
-              </div>
-            </div>
-            <div>
-              <div class="text-[8px] text-gray-600">
-                送達
-              </div>
-              <div class="font-medium">
-                {{ order.deliveryLocation.name }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom: Luggage Count -->
-          <div class="border-t border-gray-300 pt-1 text-right">
-            <span class="font-bold">{{ order.luggageCount }}</span> 件行李
-          </div>
-        </div>
-      </div>
+      <PrintCanvas
+        :template="printSettingsStore.currentTemplate"
+        :sample-data="order"
+        :scale="3"
+      />
     </div>
 
     <!-- Screen Layout (Hidden when printing) -->
@@ -193,6 +258,32 @@ function formatTime(timeString: string) {
           >
             {{ getStatusText(order.status) }}
           </span>
+          <NuxtLink
+            to="/print-settings"
+            class="
+              rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
+              font-medium text-gray-700 shadow-sm
+              hover:bg-gray-50
+              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+              focus:outline-none
+            "
+          >
+            列印設定
+          </NuxtLink>
+          <button
+            v-if="silentPrintAvailable"
+            type="button"
+            class="
+              rounded-md border border-transparent bg-green-600 px-4 py-2
+              text-sm font-medium text-white shadow-sm
+              hover:bg-green-700
+              focus:ring-2 focus:ring-green-500 focus:ring-offset-2
+              focus:outline-none
+            "
+            @click="handleSilentPrint"
+          >
+            快速列印
+          </button>
           <button
             type="button"
             class="
@@ -204,7 +295,7 @@ function formatTime(timeString: string) {
             "
             @click="handlePrint"
           >
-            列印訂單
+            {{ silentPrintAvailable ? '預覽列印' : '列印訂單' }}
           </button>
         </div>
       </div>
@@ -411,11 +502,53 @@ function formatTime(timeString: string) {
   </div>
 </template>
 
-<style>
+<style scoped>
 @media print {
-  @page {
-    size: 85mm 54mm;
-    margin: 0;
+  /* 紙張尺寸會由 handlePrint() 動態設定 */
+
+  /* 隱藏所有不需要列印的內容 */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 只顯示列印區域 */
+  .print-canvas,
+  .print-canvas * {
+    visibility: visible;
+  }
+
+  /* 確保列印區域在正確位置 */
+  .print-canvas {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 確保 Canvas 正確顯示 */
+  canvas {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 移除所有邊距和內距 */
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: hidden !important;
+  }
+
+  /* 強制單頁列印 */
+  * {
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
   }
 }
 </style>

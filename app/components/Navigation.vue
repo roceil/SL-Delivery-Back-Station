@@ -9,6 +9,7 @@ const navItems = [
   { to: '/delivery-points', label: '運送點管理' },
   { to: '/billing', label: '結帳總覽' },
   { to: '/couriers', label: '夥伴總覽' },
+  { to: '/print-settings', label: '列印設定' },
 ]
 
 function isActive(path: string) {
