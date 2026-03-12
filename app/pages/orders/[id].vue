@@ -173,7 +173,6 @@ async function handleSilentPrint() {
     // 執行靜默列印
     await printCanvas(canvas)
 
-    // eslint-disable-next-line no-alert
     // alert('列印成功！')
   }
   catch (error: any) {

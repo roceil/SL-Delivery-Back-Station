@@ -1,12 +1,86 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-display: "Inter", "Noto Sans TC", var(--font-sans);
-}
+  /* ── Fonts ── */
+  --font-display: "Noto Sans TC", var(--font-sans);
 
-@theme {
+  /* ── Primary ── */
+  --color-primary-100: #F4F9FF;
+  --color-primary-200: #EEF6FF;
+  --color-primary-300: #436CCC;
+  --color-primary-400: #2449A0;
+  --color-primary-500: #0D2E7C;
+
+  /* ── Neutral ── */
+  --color-neutral-0:   #FFFFFF;
+  --color-neutral-100: #F8F9FA;
+  --color-neutral-200: #E9ECEF;
+  --color-neutral-300: #DEE2E6;
+  --color-neutral-400: #CED4DA;
+  --color-neutral-500: #ADB5BD;
+  --color-neutral-600: #6C757D;
+  --color-neutral-700: #495057;
+  --color-neutral-800: #343A40;
+  --color-neutral-900: #212529;
+  --color-neutral-950: #21242B;
+
+  /* ── Danger ── */
+  --color-danger-100: #FEF0F0;
+  --color-danger-200: #EBA7A7;
+  --color-danger-300: #D74F4F;
+  --color-danger-400: #BD3131;
+  --color-danger-500: #9B2020;
+
+  /* ── Error（Nuxt UI color="error"） ── */
+  --color-error-50:  #FFF5F5;
+  --color-error-100: #FEF0F0;
+  --color-error-200: #FDDADA;
+  --color-error-300: #F5AAAA;
+  --color-error-400: #EBA7A7;
+  --color-error-500: #D74F4F;
+  --color-error-600: #BD3131;
+  --color-error-700: #9B2020;
+  --color-error-800: #7A1414;
+  --color-error-900: #5A0B0B;
+  --color-error-950: #3B0606;
+
+  /* ── Success ── */
+  --color-success-100: #E9F4EF;
+  --color-success-200: #9AD1BA;
+  --color-success-300: #229464;
+  --color-success-400: #13794E;
+  --color-success-500: #085C38;
+
+  /* ── Warning ── */
+  --color-warning-100: #FFEFDB;
+  --color-warning-200: #F9C588;
+  --color-warning-300: #D87500;
+  --color-warning-400: #B26000;
+  --color-warning-500: #8D4C00;
+
+  /* ── Info ── */
+  --color-info-100: #F4F9FF;
+  --color-info-200: #97C3ED;
+  --color-info-300: #3087DB;
+  --color-info-400: #1365B5;
+  --color-info-500: #014281;
+
+  /* ── Font sizes (heading / body) ── */
+  --font-size-2xs: 0.6875rem; /* 11px */
+  --font-size-md:  1rem;      /* 16px, alias for base */
+  --font-size-h8:  0.875rem;  /* 14px */
+  --font-size-h7:  1rem;      /* 16px */
+  --font-size-h6:  1.125rem;  /* 18px */
+  --font-size-h5:  1.25rem;   /* 20px */
+  --font-size-h4:  1.5rem;    /* 24px */
+  --font-size-h3:  1.75rem;   /* 28px */
+  --font-size-h2:  2rem;      /* 32px */
+  --font-size-h1:  2.5rem;    /* 40px */
+
+  /* ── Animations ── */
   --animate-wiggle: wiggle 1s ease-in-out infinite;
 
   @keyframes wiggle {
@@ -17,45 +91,7 @@
 
 @layer base {
   html, body {
-    @apply font-display text-gray-900 bg-white;
-  }
-
-  /* 為所有表單元素添加基本樣式 */
-  input[type="text"],
-  input[type="email"],
-  input[type="tel"],
-  input[type="number"],
-  input[type="date"],
-  input[type="time"],
-  input[type="datetime-local"],
-  input[type="password"],
-  input[type="url"],
-  input[type="search"],
-  select,
-  textarea {
-    @apply border border-gray-300 rounded-md px-3 py-2 text-sm;
-    @apply focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none;
-    @apply bg-white text-gray-900;
-  }
-
-  /* 確保 option 元素也有正確的文字顏色 */
-  option {
-    @apply text-gray-900 bg-white;
-  }
-
-  /* checkbox 和 radio 的樣式 */
-  input[type="checkbox"],
-  input[type="radio"] {
-    @apply border border-gray-300 rounded;
-    @apply focus:ring-2 focus:ring-blue-500 focus:ring-offset-0;
-    @apply text-blue-600;
-  }
-
-  /* disabled 狀態 */
-  input:disabled,
-  select:disabled,
-  textarea:disabled {
-    @apply bg-gray-50 text-gray-500 cursor-not-allowed;
+    @apply font-display text-neutral-900 bg-neutral-0;
   }
 }
 
@@ -66,5 +102,123 @@
 
   .my-link {
     @apply rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-all;
+  }
+}
+
+@theme inline {
+  --radius-xs: 0.5rem;    /* 8px */
+  --radius-sm: 0.75rem;   /* 12px */
+  --radius-md: 1rem;      /* 16px */
+  --radius-lg: 1.5rem;    /* 24px */
+  /* --radius-xl 不覆蓋，讓 Tailwind 預設 0.75rem(12px) 生效 */
+  /* pill/rounded 改用 rounded-full (9999px) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 1rem; /* radius-md = 16px */
+  --background: #FFFFFF;            /* neutral-0 */
+  --foreground: #212529;            /* neutral-900 */
+  --card: #FFFFFF;                  /* neutral-0 */
+  --card-foreground: #212529;       /* neutral-900 */
+  --popover: #FFFFFF;               /* neutral-0 */
+  --popover-foreground: #212529;    /* neutral-900 */
+  --primary: #2449A0;               /* primary-400 */
+  --primary-foreground: #FFFFFF;    /* neutral-0 */
+  --secondary: #F8F9FA;             /* neutral-100 */
+  --secondary-foreground: #212529;  /* neutral-900 */
+  --muted: #F8F9FA;                 /* neutral-100 */
+  --muted-foreground: #6C757D;      /* neutral-600 */
+  --accent: #EEF6FF;                /* primary-200 */
+  --accent-foreground: #0D2E7C;     /* primary-500 */
+  --destructive: #BD3131;           /* danger-400 */
+  --border: #E9ECEF;                /* neutral-200 */
+  --input: #E9ECEF;                 /* neutral-200 */
+  --ring: #436CCC;                  /* primary-300 */
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: #F8F9FA;                       /* neutral-100 */
+  --sidebar-foreground: #212529;            /* neutral-900 */
+  --sidebar-primary: #2449A0;               /* primary-400 */
+  --sidebar-primary-foreground: #FFFFFF;    /* neutral-0 */
+  --sidebar-accent: #EEF6FF;                /* primary-200 */
+  --sidebar-accent-foreground: #0D2E7C;     /* primary-500 */
+  --sidebar-border: #E9ECEF;                /* neutral-200 */
+  --sidebar-ring: #436CCC;                  /* primary-300 */
+}
+
+.dark {
+  --background: #212529;            /* neutral-900 */
+  --foreground: #FFFFFF;            /* neutral-0 */
+  --card: #343A40;                  /* neutral-800 */
+  --card-foreground: #FFFFFF;       /* neutral-0 */
+  --popover: #343A40;               /* neutral-800 */
+  --popover-foreground: #FFFFFF;    /* neutral-0 */
+  --primary: #436CCC;               /* primary-300 */
+  --primary-foreground: #FFFFFF;    /* neutral-0 */
+  --secondary: #495057;             /* neutral-700 */
+  --secondary-foreground: #FFFFFF;  /* neutral-0 */
+  --muted: #343A40;                 /* neutral-800 */
+  --muted-foreground: #ADB5BD;      /* neutral-500 */
+  --accent: #2449A0;                /* primary-400 */
+  --accent-foreground: #EEF6FF;     /* primary-200 */
+  --destructive: #D74F4F;           /* danger-300 */
+  --border: #495057;                /* neutral-700 */
+  --input: #495057;                 /* neutral-700 */
+  --ring: #436CCC;                  /* primary-300 */
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: #343A40;                       /* neutral-800 */
+  --sidebar-foreground: #FFFFFF;            /* neutral-0 */
+  --sidebar-primary: #436CCC;               /* primary-300 */
+  --sidebar-primary-foreground: #FFFFFF;    /* neutral-0 */
+  --sidebar-accent: #2449A0;                /* primary-400 */
+  --sidebar-accent-foreground: #EEF6FF;     /* primary-200 */
+  --sidebar-border: #495057;                /* neutral-700 */
+  --sidebar-ring: #436CCC;                  /* primary-300 */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

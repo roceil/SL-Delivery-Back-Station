@@ -9,30 +9,42 @@ export default defineNuxtConfig({
     host: ' ',
   },
 
-  vite: {
-    plugins: [
-      tailwindcss(),
-    ],
-    server: {
-      allowedHosts: ['27f6fe13f9c7.ngrok-free.app'],
-    },
-  },
-
   modules: [
+    '@nuxt/ui',
     '@nuxt/fonts',
     '@nuxtjs/color-mode',
     '@nuxt/icon',
     '@pinia/nuxt',
     '@vueuse/nuxt',
     '@nuxt/eslint',
+    'shadcn-nuxt',
   ],
 
   css: ['~/assets/css/main.css'],
 
-  postcss: {
-    plugins: {
-      '@tailwindcss/postcss': {},
-    },
+  vite: {
+    plugins: [
+      tailwindcss() as never,
+    ],
+  },
+
+  ui: {
+    colorMode: false,
+  },
+
+  shadcn: {
+    /**
+     * Prefix for all the imported component.
+     * @default "Ui"
+     */
+    prefix: '',
+    /**
+     * Directory that the component lives in.
+     * Will respect the Nuxt aliases.
+     * @link https://nuxt.com/docs/api/nuxt-config#alias
+     * @default "@/components/ui"
+     */
+    componentDir: '@/components/ui',
   },
 
   app: {
@@ -64,13 +76,13 @@ export default defineNuxtConfig({
 
   compatibilityDate: '2025-08-01',
 
-  nitro: {
-    preset: 'node-server',
-    // 確保 Nitro 從環境變數讀取 PORT
-    experimental: {
-      envExpansion: true,
-    },
-  },
+  // nitro: {
+  //   preset: 'node-server',
+  //   // 確保 Nitro 從環境變數讀取 PORT
+  //   experimental: {
+  //     envExpansion: true,
+  //   },
+  // },
 
   runtimeConfig: {
     // 伺服器端環境變數（不會暴露給客戶端）

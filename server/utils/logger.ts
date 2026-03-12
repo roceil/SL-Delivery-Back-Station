@@ -24,7 +24,7 @@ function writeLog(level: string, message: string, data?: any) {
   // 在開發環境寫入檔案，生產環境只輸出到 console
   if (!isProduction) {
     const logFile = path.join(logsDir, `print-service-${new Date().toISOString().split('T')[0]}.log`)
-    fs.appendFile(logFile, logMessage + '\n', (err) => {
+    fs.appendFile(logFile, `${logMessage}\n`, (err) => {
       if (err) {
         console.error('寫入日誌失敗:', err)
       }

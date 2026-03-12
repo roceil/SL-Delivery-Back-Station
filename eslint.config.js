@@ -60,6 +60,7 @@ export default withNuxt(
         'warn',
         {
           detectComponentClasses: true,
+          ignore: ['text-2xs', 'text-md', 'text-h8', 'text-h7', 'text-h6', 'text-h5', 'text-h4', 'text-h3', 'text-h2', 'text-h1'],
         },
       ],
     },
