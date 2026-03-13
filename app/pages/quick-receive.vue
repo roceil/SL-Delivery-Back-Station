@@ -84,7 +84,7 @@ function removeSpecialItem(index: number) {
 
 <template>
   <div
-    class="-m-8 flex min-h-full flex-col gap-4 p-8"
+    class="flex min-h-full flex-col gap-4 p-8"
     :class="pageState === 'orderFound' ? 'bg-neutral-100' : 'bg-neutral-0'"
   >
     <!-- 0.2.1：掃描訂單狀態 -->
@@ -141,7 +141,7 @@ function removeSpecialItem(index: number) {
     <template v-else>
       <!-- 頁面標題列 -->
       <div class="flex items-baseline justify-between">
-        <h1 class="text-h4 font-bold tracking-wider text-neutral-900">
+        <h1 class="text-2xl font-bold tracking-wider text-neutral-900">
           快速收件
         </h1>
         <button

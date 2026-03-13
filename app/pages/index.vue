@@ -15,39 +15,41 @@ const tabs = [
 </script>
 
 <template>
-  <Tabs default-value="today">
-    <div class="flex flex-col">
-      <!-- Tab 列 -->
-      <TabsList
-        class="
-          !flex !h-auto !items-end !justify-start !rounded-none !bg-transparent
-          !p-0
-        "
-      >
-        <TabsTrigger
-          v-for="tab in tabs"
-          :key="tab.key"
-          :value="tab.key"
-          variant="gradient-border"
+  <div class="p-8">
+    <Tabs default-value="today">
+      <div class="flex flex-col">
+        <!-- Tab 列 -->
+        <TabsList
+          class="
+            !flex !h-auto !items-end !justify-start !rounded-none
+            !bg-transparent !p-0
+          "
         >
-          {{ tab.label }}
-        </TabsTrigger>
-      </TabsList>
+          <TabsTrigger
+            v-for="tab in tabs"
+            :key="tab.key"
+            :value="tab.key"
+            variant="gradient-border"
+          >
+            {{ tab.label }}
+          </TabsTrigger>
+        </TabsList>
 
-      <!-- 今日概覽 -->
-      <TabsContent value="today">
-        <DashboardTodayTab :stats-data="statsData ?? null" />
-      </TabsContent>
+        <!-- 今日概覽 -->
+        <TabsContent value="today">
+          <DashboardTodayTab :stats-data="statsData ?? null" />
+        </TabsContent>
 
-      <!-- 本週統計 -->
-      <TabsContent value="week">
-        <DashboardWeekTab />
-      </TabsContent>
+        <!-- 本週統計 -->
+        <TabsContent value="week">
+          <DashboardWeekTab />
+        </TabsContent>
 
-      <!-- 本月報告 -->
-      <TabsContent value="month">
-        <DashboardMonthTab :stats-data="statsData ?? null" />
-      </TabsContent>
-    </div>
-  </Tabs>
+        <!-- 本月報告 -->
+        <TabsContent value="month">
+          <DashboardMonthTab :stats-data="statsData ?? null" />
+        </TabsContent>
+      </div>
+    </Tabs>
+  </div>
 </template>

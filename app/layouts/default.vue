@@ -109,7 +109,7 @@ const pageLabel = computed(() => {
       </header>
 
       <!-- Page content -->
-      <main class="flex-1 overflow-auto p-8">
+      <main class="flex-1 overflow-auto">
         <slot></slot>
       </main>
     </div>
