@@ -1,15 +1,26 @@
 <script setup lang="ts">
+import {
+  ChartColumn,
+  ClipboardList,
+  MapPin,
+  Printer,
+  Route,
+  Store,
+  UsersRound,
+  Wallet,
+} from 'lucide-vue-next'
+
 const route = useRoute()
 
 const navItems = [
-  { to: '/', label: '儀表板', icon: 'carbon:dashboard' },
-  { to: '/orders', label: '訂單總覽', icon: 'carbon:document-multiple-01' },
-  { to: '/trips', label: '行程管理', icon: 'carbon:road' },
-  { to: '/merchants', label: '商家管理', icon: 'carbon:store' },
-  { to: '/delivery-points', label: '運送點管理', icon: 'carbon:location' },
-  { to: '/billing', label: '結帳總覽', icon: 'carbon:wallet' },
-  { to: '/couriers', label: '夥伴總覽', icon: 'carbon:group' },
-  { to: '/print-settings', label: '列印設定', icon: 'carbon:printer' },
+  { to: '/', label: '儀表板', icon: ChartColumn },
+  { to: '/orders', label: '訂單總覽', icon: ClipboardList },
+  { to: '/trips', label: '行程管理', icon: Route },
+  { to: '/merchants', label: '商家管理', icon: Store },
+  { to: '/delivery-points', label: '運送點管理', icon: MapPin },
+  { to: '/billing', label: '結帳總覽', icon: Wallet },
+  { to: '/couriers', label: '夥伴總覽', icon: UsersRound },
+  { to: '/print-settings', label: '列印設定', icon: Printer },
 ]
 
 function isActive(path: string) {
@@ -42,8 +53,8 @@ function isActive(path: string) {
           ? 'bg-primary-200 text-neutral-900'
           : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'"
       >
-        <Icon
-          :name="item.icon"
+        <component
+          :is="item.icon"
           class="size-5 shrink-0"
         />
         <span class="text-base font-medium tracking-wider">{{ item.label }}</span>

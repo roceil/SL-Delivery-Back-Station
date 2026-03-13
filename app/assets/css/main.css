@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 @theme {
   /* ── Fonts ── */
   --font-display: "Noto Sans TC", var(--font-sans);
@@ -97,11 +95,11 @@
 
 @layer components {
   .my-btn {
-    @apply inline-block px-4 py-1 rounded bg-gray-600 [&:not(:disabled)]:bg-teal-600 dark:bg-gray-400 cursor-pointer [&:not(:disabled)]:hover:bg-teal-600 [&:not(:disabled)]:dark:hover:bg-teal-700 text-white disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-default;
+    @apply inline-block px-4 py-1 rounded bg-gray-600 [&:not(:disabled)]:bg-teal-600 cursor-pointer [&:not(:disabled)]:hover:bg-teal-600 text-white disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-default;
   }
 
   .my-link {
-    @apply rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-all;
+    @apply rounded-lg hover:bg-gray-200 transition-all;
   }
 }
 
@@ -180,45 +178,15 @@
   --sidebar-ring: #436CCC;                  /* primary-300 */
 }
 
-.dark {
-  --background: #212529;            /* neutral-900 */
-  --foreground: #FFFFFF;            /* neutral-0 */
-  --card: #343A40;                  /* neutral-800 */
-  --card-foreground: #FFFFFF;       /* neutral-0 */
-  --popover: #343A40;               /* neutral-800 */
-  --popover-foreground: #FFFFFF;    /* neutral-0 */
-  --primary: #436CCC;               /* primary-300 */
-  --primary-foreground: #FFFFFF;    /* neutral-0 */
-  --secondary: #495057;             /* neutral-700 */
-  --secondary-foreground: #FFFFFF;  /* neutral-0 */
-  --muted: #343A40;                 /* neutral-800 */
-  --muted-foreground: #ADB5BD;      /* neutral-500 */
-  --accent: #2449A0;                /* primary-400 */
-  --accent-foreground: #EEF6FF;     /* primary-200 */
-  --destructive: #D74F4F;           /* danger-300 */
-  --border: #495057;                /* neutral-700 */
-  --input: #495057;                 /* neutral-700 */
-  --ring: #436CCC;                  /* primary-300 */
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #343A40;                       /* neutral-800 */
-  --sidebar-foreground: #FFFFFF;            /* neutral-0 */
-  --sidebar-primary: #436CCC;               /* primary-300 */
-  --sidebar-primary-foreground: #FFFFFF;    /* neutral-0 */
-  --sidebar-accent: #2449A0;                /* primary-400 */
-  --sidebar-accent-foreground: #EEF6FF;     /* primary-200 */
-  --sidebar-border: #495057;                /* neutral-700 */
-  --sidebar-ring: #436CCC;                  /* primary-300 */
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  button {
+    @apply cursor-pointer
   }
 }

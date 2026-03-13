@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Search } from 'lucide-vue-next'
+
 const route = useRoute()
 
 const routeLabels: Record<string, string> = {
@@ -10,6 +12,7 @@ const routeLabels: Record<string, string> = {
   '/billing': '結帳總覽',
   '/couriers': '夥伴總覽',
   '/print-settings': '列印設定',
+  '/quick-receive': '快速收件',
 }
 
 const pageLabel = computed(() => {
@@ -72,8 +75,7 @@ const pageLabel = computed(() => {
               border-neutral-200 bg-neutral-0 px-3 py-2
             "
           >
-            <Icon
-              name="carbon:search"
+            <Search
               class="size-5 shrink-0 text-neutral-500"
             />
             <input
@@ -98,7 +100,11 @@ const pageLabel = computed(() => {
           </Button>
 
           <!-- 快速收件 -->
-          <Button>快速收件</Button>
+          <Button as-child>
+            <NuxtLink to="/quick-receive">
+              快速收件
+            </NuxtLink>
+          </Button>
         </div>
       </header>
 
