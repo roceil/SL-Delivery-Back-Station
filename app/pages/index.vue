@@ -1,23 +1,21 @@
 <script lang="ts" setup>
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 useHead({
   title: '儀表板 - 你行李來',
 })
 
-const activeTab = ref<'today' | 'week' | 'month'>('today')
-
 const { data: statsData } = await useFetch('/api/dashboard/stats')
 
 const tabs = [
-  { key: 'today' as const, label: '今日概覽' },
-  { key: 'week' as const, label: '本週統計' },
-  { key: 'month' as const, label: '本月報告' },
+  { key: 'today', label: '今日概覽' },
+  { key: 'week', label: '本週統計' },
+  { key: 'month', label: '本月報告' },
 ]
 </script>
 
 <template>
-  <Tabs v-model="activeTab">
+  <Tabs default-value="today">
     <div class="flex flex-col">
       <!-- Tab 列 -->
       <TabsList
@@ -36,16 +34,20 @@ const tabs = [
         </TabsTrigger>
       </TabsList>
 
-      <!-- Tab 內容元件 -->
-      <DashboardTodayTab
-        v-if="activeTab === 'today'"
-        :stats-data="statsData"
-      />
-      <DashboardWeekTab v-else-if="activeTab === 'week'" />
-      <DashboardMonthTab
-        v-else
-        :stats-data="statsData"
-      />
+      <!-- 今日概覽 -->
+      <TabsContent value="today">
+        <DashboardTodayTab :stats-data="statsData ?? null" />
+      </TabsContent>
+
+      <!-- 本週統計 -->
+      <TabsContent value="week">
+        <DashboardWeekTab />
+      </TabsContent>
+
+      <!-- 本月報告 -->
+      <TabsContent value="month">
+        <DashboardMonthTab :stats-data="statsData ?? null" />
+      </TabsContent>
     </div>
   </Tabs>
 </template>

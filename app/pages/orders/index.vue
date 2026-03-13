@@ -1,4 +1,12 @@
 <script lang="ts" setup>
+import { ChevronRight, Luggage } from 'lucide-vue-next'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+
 interface Location {
   id: string
   name: string
@@ -11,9 +19,11 @@ interface Order {
   lineName: string
   phone: string
   deliveryDate: string | null
+  returnDate?: string | null
   pickupTime: string
   luggageCount: number
   status: string
+  tripAssignment?: string
   pickupLocation: Location
   deliveryLocation: Location
   notes: string
@@ -26,90 +36,53 @@ useHead({
 
 const { data: orders } = await useFetch<Order[]>('/api/orders')
 
-const columns = [
-  { key: 'category', label: '類別', width: '0.7fr' },
-  { key: 'customer', label: '客戶資訊', width: '1.2fr' },
-  { key: 'deliveryDate', label: '寄送日期', width: '0.8fr' },
-  { key: 'pickupTime', label: '收貨時間', width: '0.9fr' },
-  { key: 'pickupLocation', label: '起始點', width: '1.5fr' },
-  { key: 'deliveryLocation', label: '送達點', width: '1.5fr' },
-  { key: 'luggageCount', label: '行李數量', width: '0.7fr' },
-  { key: 'status', label: '狀態', width: '0.8fr' },
-  { key: 'createdAt', label: '建立時間', width: '0.8fr' },
-]
-
-const gridTemplateColumns = columns.map(col => col.width).join(' ')
-
 const router = useRouter()
 
-function goToOrderDetail(orderId: string) {
-  router.push(`/orders/${orderId}`)
-}
-
-const statusConfig = {
-  pending: { text: '待確認', color: 'bg-yellow-100 text-yellow-800' },
-  confirmed: { text: '已確認', color: 'bg-blue-100 text-blue-800' },
-  assigned: { text: '已分配行程', color: 'bg-purple-100 text-purple-800' },
-  in_delivery: { text: '配送中', color: 'bg-indigo-100 text-indigo-800' },
-  delivered: { text: '已送達', color: 'bg-green-100 text-green-800' },
-  cancelled: { text: '已取消', color: 'bg-red-100 text-red-800' },
-}
-
-const categoryConfig = {
-  散客: { color: 'bg-blue-100 text-blue-800' },
-  合作: { color: 'bg-purple-100 text-purple-800' },
-  Trip: { color: 'bg-green-100 text-green-800' },
-  Klook: { color: 'bg-orange-100 text-orange-800' },
-}
-
-// 篩選器狀態
 const filters = reactive({
-  category: '',
-  status: '',
-  searchText: '',
+  keyword: '',
+  customerType: '',
+  orderStatus: '',
+  tripAssignment: '',
   dateFrom: '',
   dateTo: '',
 })
 
-// 過濾後的訂單
+const hasActiveFilters = computed(() => Object.values(filters).some(v => !!v))
+
 const filteredOrders = computed(() => {
   if (!orders.value)
     return []
 
   return orders.value.filter((order) => {
-    // 篩選類別
-    if (filters.category && order.category !== filters.category)
-      return false
-
-    // 篩選狀態
-    if (filters.status && order.status !== filters.status)
-      return false
-
-    // 篩選搜尋文字（客戶姓名或電話）
-    if (filters.searchText) {
-      const searchLower = filters.searchText.toLowerCase()
-      const matchName = order.lineName?.toLowerCase().includes(searchLower)
-      const matchPhone = order.phone?.toLowerCase().includes(searchLower)
-      if (!matchName && !matchPhone)
+    if (filters.keyword) {
+      const kw = filters.keyword.toLowerCase()
+      const matchName = order.lineName?.toLowerCase().includes(kw)
+      const matchPhone = order.phone?.toLowerCase().includes(kw)
+      const matchId = order.id?.toLowerCase().includes(kw)
+      if (!matchName && !matchPhone && !matchId)
         return false
     }
 
-    // 篩選寄送日期範圍
+    if (filters.customerType && order.category !== filters.customerType)
+      return false
+
+    if (filters.orderStatus && order.status !== filters.orderStatus)
+      return false
+
+    if (filters.tripAssignment && order.tripAssignment !== filters.tripAssignment)
+      return false
+
     if (filters.dateFrom) {
       if (!order.deliveryDate)
         return false
-      const orderDate = new Date(order.deliveryDate)
-      const fromDate = new Date(filters.dateFrom)
-      if (orderDate < fromDate)
+      if (new Date(order.deliveryDate) < new Date(filters.dateFrom))
         return false
     }
 
     if (filters.dateTo) {
-      if (!order.deliveryDate)
+      if (!order.returnDate)
         return false
-      const orderDate = new Date(order.deliveryDate)
-      const toDate = new Date(filters.dateTo)
-      if (orderDate > toDate)
+      if (new Date(order.returnDate) > new Date(filters.dateTo))
         return false
     }
 
@@ -117,31 +90,36 @@ const filteredOrders = computed(() => {
   })
 })
 
-// 重置篩選器
+const selectedOrders = reactive(new Set<string>())
+
+const isAllSelected = computed(
+  () => filteredOrders.value.length > 0 && filteredOrders.value.every(o => selectedOrders.has(o.id)),
+)
+
+const isIndeterminate = computed(
+  () => filteredOrders.value.some(o => selectedOrders.has(o.id)) && !isAllSelected.value,
+)
+
+function toggleAll() {
+  if (isAllSelected.value) {
+    filteredOrders.value.forEach(o => selectedOrders.delete(o.id))
+  }
+  else {
+    filteredOrders.value.forEach(o => selectedOrders.add(o.id))
+  }
+}
+
 function resetFilters() {
-  filters.category = ''
-  filters.status = ''
-  filters.searchText = ''
+  filters.keyword = ''
+  filters.customerType = ''
+  filters.orderStatus = ''
+  filters.tripAssignment = ''
   filters.dateFrom = ''
   filters.dateTo = ''
 }
 
-function getStatusText(status?: string) {
-  if (!status)
-    return '-'
-  return statusConfig[status as keyof typeof statusConfig]?.text || status
-}
-
-function getStatusColor(status?: string) {
-  if (!status)
-    return 'bg-gray-100 text-gray-800'
-  return statusConfig[status as keyof typeof statusConfig]?.color || 'bg-gray-100 text-gray-800'
-}
-
-function getCategoryColor(category?: string) {
-  if (!category)
-    return 'bg-gray-100 text-gray-800'
-  return categoryConfig[category as keyof typeof categoryConfig]?.color || 'bg-gray-100 text-gray-800'
+function goToOrderDetail(orderId: string) {
+  router.push(`/orders/${orderId}`)
 }
 
 function formatDate(dateString?: string | null) {
@@ -150,340 +128,427 @@ function formatDate(dateString?: string | null) {
   return new Date(dateString).toLocaleDateString('zh-TW')
 }
 
-function formatTime(timeString?: string) {
-  if (!timeString)
-    return '-'
-  // 將 hh:mm:ss 格式轉換為 hh:mm
-  return timeString.slice(0, 5)
+type CategoryBadgeType = 'gray' | 'sky' | 'light-sky' | 'amber' | 'peach' | 'mint'
+type StatusBadgeType = 'gray' | 'red' | 'blue' | 'orange'
+type TripBadgeType = 'gray' | 'red' | 'blue'
+
+const categoryBadgeMap: Record<string, { type: CategoryBadgeType, label: string }> = {
+  散客: { type: 'sky', label: '散客' },
+  代售: { type: 'light-sky', label: '代售' },
+  Klook: { type: 'amber', label: 'Klook' },
+  Trip: { type: 'peach', label: 'Trip' },
+  KKday: { type: 'mint', label: 'KKday' },
 }
+
+const statusBadgeMap: Record<string, { type: StatusBadgeType, label: string }> = {
+  confirmed: { type: 'gray', label: '已確認' },
+  pending: { type: 'red', label: '待確認' },
+  outbound: { type: 'blue', label: '去程' },
+  in_transit: { type: 'blue', label: '運送中' },
+  received: { type: 'orange', label: '已收件' },
+  delivered: { type: 'gray', label: '已送達' },
+}
+
+const tripBadgeMap: Record<string, { type: TripBadgeType, label: string }> = {
+  assigned: { type: 'gray', label: '已分配' },
+  unassigned: { type: 'red', label: '尚未分配' },
+  outbound_unassigned: { type: 'blue', label: '去程未分配' },
+}
+
+function getCategoryBadge(category?: string) {
+  return categoryBadgeMap[category ?? ''] ?? { type: 'gray' as const, label: category ?? '-' }
+}
+
+function getStatusBadge(status?: string) {
+  return statusBadgeMap[status ?? ''] ?? { type: 'gray' as const, label: status ?? '-' }
+}
+
+function getTripBadge(tripAssignment?: string) {
+  return tripBadgeMap[tripAssignment ?? ''] ?? { type: 'red' as const, label: '尚未分配' }
+}
+
+const tableColumns = [
+  { key: 'checkbox', label: '', width: '52px' },
+  { key: 'category', label: '類別', width: '84px' },
+  { key: 'customer', label: '旅客/商家', width: '104px' },
+  { key: 'deliveryDate', label: '寄件日期(去)', width: '117px' },
+  { key: 'returnDate', label: '寄件日期(回)', width: '117px' },
+  { key: 'pickupLocation', label: '起始點', width: '1fr' },
+  { key: 'deliveryLocation', label: '送達點', width: '1fr' },
+  { key: 'luggageCount', label: '行李數量', width: '91px' },
+  { key: 'status', label: '訂單狀態', width: '123px' },
+  { key: 'tripAssignment', label: '行程分配', width: '111px' },
+  { key: 'action', label: '', width: '66px' },
+]
+
+const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
 </script>
 
 <template>
-  <div class="rounded-lg bg-white shadow">
-    <div class="px-4 py-5 sm:p-6">
-      <div class="mb-6 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-900">
-          訂單總覽
-        </h1>
-        <NuxtLink
-          to="/orders/new"
-          class="
-            rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm
-            font-medium text-white
-            hover:bg-blue-700
-            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            focus:outline-none
-          "
-        >
-          新建訂單
-        </NuxtLink>
-      </div>
-
-      <!-- 篩選器區域 -->
-      <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <!-- 搜尋框 -->
-          <div>
-            <label
-              for="search"
-              class="block text-sm font-medium text-gray-700"
-            >
-              搜尋客戶
-            </label>
-            <input
-              id="search"
-              v-model="filters.searchText"
-              type="text"
-              placeholder="姓名或電話"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-                sm:text-sm
-              "
-            >
-          </div>
-
-          <!-- 類別篩選 -->
-          <div>
-            <label
-              for="category"
-              class="block text-sm font-medium text-gray-700"
-            >
-              類別
-            </label>
-            <select
-              id="category"
-              v-model="filters.category"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-                sm:text-sm
-              "
-            >
-              <option value="">
-                全部類別
-              </option>
-              <option value="散客">
-                散客
-              </option>
-              <option value="合作">
-                合作
-              </option>
-              <option value="Trip">
-                Trip
-              </option>
-              <option value="Klook">
-                Klook
-              </option>
-            </select>
-          </div>
-
-          <!-- 狀態篩選 -->
-          <div>
-            <label
-              for="status"
-              class="block text-sm font-medium text-gray-700"
-            >
-              狀態
-            </label>
-            <select
-              id="status"
-              v-model="filters.status"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-                sm:text-sm
-              "
-            >
-              <option value="">
-                全部狀態
-              </option>
-              <option value="pending">
-                待確認
-              </option>
-              <option value="confirmed">
-                已確認
-              </option>
-              <option value="assigned">
-                已分配行程
-              </option>
-              <option value="in_delivery">
-                配送中
-              </option>
-              <option value="delivered">
-                已送達
-              </option>
-              <option value="cancelled">
-                已取消
-              </option>
-            </select>
-          </div>
-
-          <!-- 寄送日期起 -->
-          <div>
-            <label
-              for="dateFrom"
-              class="block text-sm font-medium text-gray-700"
-            >
-              寄送日期起
-            </label>
-            <input
-              id="dateFrom"
-              v-model="filters.dateFrom"
-              type="date"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-                sm:text-sm
-              "
-            >
-          </div>
-
-          <!-- 寄送日期迄 -->
-          <div>
-            <label
-              for="dateTo"
-              class="block text-sm font-medium text-gray-700"
-            >
-              寄送日期迄
-            </label>
-            <input
-              id="dateTo"
-              v-model="filters.dateTo"
-              type="date"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-                sm:text-sm
-              "
-            >
-          </div>
-        </div>
-
-        <!-- 重置按鈕 -->
-        <div class="mt-4 flex justify-end">
-          <button
-            type="button"
-            class="
-              rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
-              font-medium text-gray-700 shadow-sm
-              hover:bg-gray-50
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-            @click="resetFilters"
-          >
-            重置篩選
-          </button>
-        </div>
-      </div>
-
-      <div
+  <div class="flex flex-col gap-4">
+    <!-- 標題列 -->
+    <div class="flex items-center justify-between">
+      <h4 class="text-2xl font-bold tracking-wider text-neutral-900">
+        訂單總覽
+      </h4>
+      <button
+        type="button"
         class="
-          overflow-hidden overflow-x-auto shadow ring-1 ring-black
-          md:rounded-lg
+          rounded-xs border px-4 py-2 text-sm font-medium tracking-wider
+          transition-colors
         "
+        :class="[
+          hasActiveFilters
+            ? 'border-neutral-300 text-neutral-700 hover:bg-neutral-100'
+            : 'cursor-not-allowed border-neutral-200 text-neutral-400',
+        ]"
+        :disabled="!hasActiveFilters"
+        @click="resetFilters"
       >
-        <!-- Header -->
+        清除篩選條件
+      </button>
+    </div>
+
+    <!-- 篩選區 -->
+    <div class="rounded-md bg-neutral-100 p-6">
+      <!-- Row 1 -->
+      <div class="grid grid-cols-3 gap-4">
+        <!-- 關鍵字 -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium tracking-wider text-neutral-600">關鍵字</label>
+          <input
+            v-model="filters.keyword"
+            type="text"
+            placeholder="旅客姓名、電話或訂單編號"
+            class="
+              rounded-xs border border-neutral-200 bg-white px-3 py-2 text-sm
+              tracking-wide text-neutral-900 outline-none
+              placeholder:text-neutral-400
+              focus:border-neutral-400
+            "
+          >
+        </div>
+
+        <!-- 旅客類型 -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium tracking-wider text-neutral-600">旅客類型</label>
+          <Select v-model="filters.customerType">
+            <SelectTrigger class="bg-white text-sm">
+              <SelectValue placeholder="全部類型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="散客">
+                  散客
+                </SelectItem>
+                <SelectItem value="Klook">
+                  Klook
+                </SelectItem>
+                <SelectItem value="代售">
+                  代售
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <!-- 訂單狀態 -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium tracking-wider text-neutral-600">訂單狀態</label>
+          <Select v-model="filters.orderStatus">
+            <SelectTrigger class="bg-white text-sm">
+              <SelectValue placeholder="全部狀態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="confirmed">
+                  已確認
+                </SelectItem>
+                <SelectItem value="pending">
+                  待確認
+                </SelectItem>
+                <SelectItem value="outbound">
+                  去程
+                </SelectItem>
+                <SelectItem value="in_transit">
+                  運送中
+                </SelectItem>
+                <SelectItem value="received">
+                  已收件
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <!-- Row 2 -->
+      <div class="mt-4 grid grid-cols-3 gap-4">
+        <!-- 行程分配狀態 -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium tracking-wider text-neutral-600">行程分配狀態</label>
+          <Select v-model="filters.tripAssignment">
+            <SelectTrigger class="bg-white text-sm">
+              <SelectValue placeholder="全部狀態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="assigned">
+                  已分配
+                </SelectItem>
+                <SelectItem value="unassigned">
+                  尚未分配
+                </SelectItem>
+                <SelectItem value="outbound_unassigned">
+                  去程未分配
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <!-- 寄件日期(去) -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium tracking-wider text-neutral-600">寄件日期(去)</label>
+          <input
+            v-model="filters.dateFrom"
+            type="date"
+            class="
+              rounded-xs border border-neutral-200 bg-white px-3 py-2 text-sm
+              tracking-wide text-neutral-900 outline-none
+              focus:border-neutral-400
+            "
+          >
+        </div>
+
+        <!-- 寄件日期(回) -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium tracking-wider text-neutral-600">寄件日期(回)</label>
+          <input
+            v-model="filters.dateTo"
+            type="date"
+            class="
+              rounded-xs border border-neutral-200 bg-white px-3 py-2 text-sm
+              tracking-wide text-neutral-900 outline-none
+              focus:border-neutral-400
+            "
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- 結果區 -->
+    <div class="flex flex-col gap-3">
+      <!-- State 1.1.1: 有結果 -->
+      <template v-if="filteredOrders.length > 0">
+        <!-- 搜尋結果標題 -->
+        <div class="flex items-center gap-2">
+          <span class="text-base font-bold tracking-wider text-neutral-900">搜尋結果</span>
+          <span class="text-xs tracking-wide text-neutral-600">共 {{ filteredOrders.length }} 筆訂單</span>
+        </div>
+
+        <!-- 表格 -->
         <div
-          class="
-            grid gap-4 bg-gray-50 px-6 py-3 text-left text-xs font-medium
-            tracking-wider text-gray-500 uppercase
-          "
-          :style="{ gridTemplateColumns }"
+          class="rounded-sm bg-white"
         >
+          <!-- 表頭 -->
           <div
-            v-for="column in columns"
-            :key="column.key"
-          >
-            {{ column.label }}
-          </div>
-        </div>
-
-        <!-- Body -->
-        <div class="divide-y divide-gray-200 bg-white">
-          <div
-            v-for="order in filteredOrders"
-            :key="order.id"
-            class="grid cursor-pointer gap-4 px-6 py-4 hover:bg-gray-50"
+            class="grid gap-x-4 border-b border-neutral-200 px-4 py-3"
             :style="{ gridTemplateColumns }"
-            @click="goToOrderDetail(order.id)"
           >
-            <div class="whitespace-nowrap">
-              <span
-                :class="getCategoryColor(order.category)"
-                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+            <!-- 全選 Checkbox -->
+            <div>
+              <Checkbox
+                :checked="isAllSelected"
+                :indeterminate="isIndeterminate"
+                @change="toggleAll"
+              />
+            </div>
+            <!-- 其餘欄位標題 -->
+            <div
+              v-for="header in tableColumns.slice(1)"
+              :key="header.key"
+              class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+            >
+              {{ header.label }}
+            </div>
+          </div>
+
+          <!-- 表格列 -->
+          <div class="divide-y divide-neutral-200">
+            <div
+              v-for="order in filteredOrders"
+              :key="order.id"
+              class="
+                grid min-h-[60px] cursor-pointer items-center gap-x-4 px-4 py-3
+                hover:bg-neutral-50
+              "
+              :style="{ gridTemplateColumns }"
+              @click="goToOrderDetail(order.id)"
+            >
+              <!-- Checkbox -->
+              <div
+                @click.stop
               >
-                {{ order.category }}
-              </span>
-            </div>
-
-            <div class="whitespace-nowrap">
-              <div class="text-sm font-medium text-gray-900">
-                {{ order.lineName }}
+                <Checkbox
+                  :checked="selectedOrders.has(order.id)"
+                  @change="selectedOrders.has(order.id) ? selectedOrders.delete(order.id) : selectedOrders.add(order.id)"
+                />
               </div>
-              <div class="text-sm text-gray-500">
-                {{ order.phone }}
+
+              <!-- 類別 -->
+              <div>
+                <Badge
+                  :type="getCategoryBadge(order.category).type"
+                  :label="getCategoryBadge(order.category).label"
+                  size="lg"
+                />
               </div>
-            </div>
 
-            <div class="text-sm whitespace-nowrap text-gray-900">
-              {{ formatDate(order.deliveryDate) }}
-            </div>
-
-            <div class="text-sm whitespace-nowrap text-gray-900">
-              {{ formatTime(order.pickupTime) }}
-            </div>
-
-            <div class="whitespace-nowrap">
-              <div class="text-sm font-medium text-gray-900">
-                {{ order.pickupLocation?.name || '-' }}
+              <!-- 旅客/商家 -->
+              <div class="flex flex-col whitespace-nowrap">
+                <HoverCard :open-delay="100">
+                  <HoverCardTrigger
+                    class="
+                      block truncate text-sm font-medium tracking-[0.7px]
+                      text-neutral-900
+                    "
+                  >
+                    {{ order.lineName }}
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    class="
+                      w-auto rounded-full border-none bg-primary-200 px-3 py-1
+                      text-sm font-medium tracking-wide text-info-300
+                    "
+                  >
+                    {{ order.lineName }}
+                  </HoverCardContent>
+                </HoverCard>
+                <span class="text-xs tracking-[0.6px] text-neutral-600">{{ order.phone }}</span>
               </div>
-              <div class="text-xs text-gray-500">
-                {{ order.pickupLocation?.address || '-' }}
-              </div>
-            </div>
 
-            <div class="whitespace-nowrap">
-              <div class="text-sm font-medium text-gray-900">
-                {{ order.deliveryLocation?.name || '-' }}
-              </div>
-              <div class="text-xs text-gray-500">
-                {{ order.deliveryLocation?.address || '-' }}
-              </div>
-            </div>
-
-            <div class="text-sm whitespace-nowrap text-gray-900">
-              {{ order.luggageCount }} 件
-            </div>
-
-            <div class="whitespace-nowrap">
-              <span
-                :class="getStatusColor(order.status)"
-                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+              <!-- 寄件日期(去) -->
+              <div
+                class="
+                  text-sm tracking-[0.7px] whitespace-nowrap text-neutral-900
+                "
               >
-                {{ getStatusText(order.status) }}
-              </span>
-            </div>
+                {{ formatDate(order.deliveryDate) }}
+              </div>
 
-            <div class="text-sm whitespace-nowrap text-gray-500">
-              {{ formatDate(order.createdAt) }}
+              <!-- 寄件日期(回) -->
+              <div
+                class="
+                  text-sm tracking-[0.7px] whitespace-nowrap text-neutral-900
+                "
+              >
+                {{ formatDate(order.returnDate) }}
+              </div>
+
+              <!-- 起始點 -->
+              <div
+                class="
+                  overflow-hidden text-sm tracking-[0.7px] text-neutral-900
+                "
+              >
+                <HoverCard :open-delay="100">
+                  <HoverCardTrigger class="block truncate">
+                    {{ order.pickupLocation?.name || '-' }}
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    class="
+                      w-auto rounded-full border-none bg-primary-200 px-3 py-1
+                      text-sm font-medium tracking-wide text-info-300
+                    "
+                  >
+                    {{ order.pickupLocation?.name }}
+                  </HoverCardContent>
+                </HoverCard>
+              </div>
+
+              <!-- 送達點 -->
+              <div
+                class="
+                  overflow-hidden text-sm tracking-[0.7px] text-neutral-900
+                "
+              >
+                <HoverCard :open-delay="100">
+                  <HoverCardTrigger class="block truncate">
+                    {{ order.deliveryLocation?.name || '-' }}
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    class="
+                      w-auto rounded-full border-none bg-primary-200 px-3 py-1
+                      text-sm font-medium tracking-wide text-info-300
+                    "
+                  >
+                    {{ order.deliveryLocation?.name }}
+                  </HoverCardContent>
+                </HoverCard>
+              </div>
+
+              <!-- 行李數量 -->
+              <div
+                class="
+                  text-sm tracking-[0.7px] whitespace-nowrap text-neutral-900
+                "
+              >
+                {{ order.luggageCount }} 件
+              </div>
+
+              <!-- 訂單狀態 -->
+              <div>
+                <Badge
+                  :type="getStatusBadge(order.status).type"
+                  :label="getStatusBadge(order.status).label"
+                  size="lg"
+                />
+              </div>
+
+              <!-- 行程分配 -->
+              <div>
+                <Badge
+                  :type="getTripBadge(order.tripAssignment).type"
+                  :label="getTripBadge(order.tripAssignment).label"
+                  size="lg"
+                />
+              </div>
+
+              <!-- 前往 -->
+              <div class="flex justify-center">
+                <ChevronRight class="size-4 text-neutral-400" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
-      <div
-        v-if="filteredOrders.length === 0"
-        class="py-12 text-center"
-      >
-        <svg
-          class="mx-auto h-12 w-12 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <!-- State 1.1.2: 無篩選條件且無訂單 -->
+      <template v-else-if="!hasActiveFilters">
+        <div
+          class="flex flex-col items-center gap-3 rounded-md bg-neutral-100 p-8"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <h3 class="mt-2 text-sm font-medium text-gray-900">
-          沒有符合條件的訂單
-        </h3>
-        <p class="mt-1 text-sm text-gray-500">
-          目前沒有符合篩選條件的訂單，請調整篩選條件或建立新訂單。
-        </p>
-        <div class="mt-6 flex justify-center gap-3">
-          <button
-            type="button"
-            class="
-              inline-flex items-center rounded-md border border-gray-300
-              bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm
-              hover:bg-gray-50
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-            @click="resetFilters"
-          >
-            重置篩選
-          </button>
-          <NuxtLink
-            to="/orders/new"
-            class="
-              inline-flex items-center rounded-md border border-transparent
-              bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm
-              hover:bg-blue-700
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-          >
-            新建訂單
-          </NuxtLink>
+          <Luggage class="size-10 text-neutral-400" />
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-base font-bold tracking-wider text-neutral-900">尚無訂單</span>
+            <span class="text-xs tracking-wide text-neutral-600">請先新增訂單</span>
+          </div>
         </div>
-      </div>
+      </template>
+
+      <!-- State 1.1.3: 有篩選條件但無結果 -->
+      <template v-else>
+        <div
+          class="flex flex-col items-center gap-3 rounded-md bg-neutral-100 p-8"
+        >
+          <Luggage class="size-10 text-neutral-400" />
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-base font-bold tracking-wider text-neutral-900">查無訂單</span>
+            <span class="text-xs tracking-wide text-neutral-600">請重新輸入篩選條件</span>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
