@@ -1,4 +1,12 @@
 <script lang="ts" setup>
+import type { DateValue } from '@internationalized/date'
+import { DateFormatter, getLocalTimeZone, parseDate } from '@internationalized/date'
+import { CalendarIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
+
 interface TripDetail {
   id: string
   name: string
@@ -85,6 +93,13 @@ const form = ref({
   scheduledDate: tripData.scheduledDate,
   selectedOrders: tripData.orderIds,
   notes: tripData.notes,
+})
+
+const df = new DateFormatter('zh-TW', { dateStyle: 'medium' })
+
+const scheduledDateValue = computed<DateValue | undefined>({
+  get: () => form.value.scheduledDate ? parseDate(form.value.scheduledDate) : undefined,
+  set: val => form.value.scheduledDate = val ? val.toString() : '',
 })
 
 // 獲取配送員列表
@@ -215,21 +230,28 @@ function isOrderSelected(orderId: string) {
             </div>
 
             <div>
-              <label
-                for="scheduledDate"
-                class="block text-sm font-medium text-gray-700"
-              >預計日期 *</label>
-              <input
-                id="scheduledDate"
-                v-model="form.scheduledDate"
-                type="date"
-                required
-                class="
-                  mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                  focus:border-blue-500 focus:ring-blue-500
-                  sm:text-sm
-                "
-              >
+              <label class="block text-sm font-medium text-gray-700">預計日期 *</label>
+              <Popover>
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="outline"
+                    :class="cn(
+                      'mt-1 w-full justify-start rounded-md border-gray-300 px-3 py-2 text-sm font-normal shadow-sm',
+                      !scheduledDateValue && 'text-gray-400',
+                    )"
+                  >
+                    <CalendarIcon class="mr-2 size-4" />
+                    {{ scheduledDateValue ? df.format(scheduledDateValue.toDate(getLocalTimeZone())) : '選擇日期' }}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent class="w-auto p-0">
+                  <Calendar
+                    v-model="scheduledDateValue"
+                    :initial-focus="true"
+                    layout="month-and-year"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div class="sm:col-span-2">

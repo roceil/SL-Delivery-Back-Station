@@ -1,4 +1,12 @@
 <script lang="ts" setup>
+import type { DateValue } from '@internationalized/date'
+import { DateFormatter, getLocalTimeZone, parseDate } from '@internationalized/date'
+import { CalendarIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
+
 useHead({
   title: '編輯夥伴 - 物流管理系統',
 })
@@ -42,6 +50,13 @@ const form = ref({
   status: courier.value.statusId || 1,
   isAvailable: courier.value.isAvailable !== undefined ? courier.value.isAvailable : true,
   hireDate: courier.value.hireDate || '',
+})
+
+const df = new DateFormatter('zh-TW', { dateStyle: 'medium' })
+
+const hireDateValue = computed<DateValue | undefined>({
+  get: () => form.value.hireDate ? parseDate(form.value.hireDate) : undefined,
+  set: val => form.value.hireDate = val ? val.toString() : '',
 })
 
 async function submitForm() {
@@ -132,19 +147,28 @@ async function submitForm() {
           </div>
 
           <div>
-            <label
-              for="hireDate"
-              class="block text-sm font-medium text-gray-700"
-            >雇用日期</label>
-            <input
-              id="hireDate"
-              v-model="form.hireDate"
-              type="date"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-              "
-            >
+            <label class="block text-sm font-medium text-gray-700">雇用日期</label>
+            <Popover>
+              <PopoverTrigger as-child>
+                <Button
+                  variant="outline"
+                  :class="cn(
+                    'mt-1 w-full justify-start rounded-md border-gray-300 px-3 py-2 text-sm font-normal shadow-sm',
+                    !hireDateValue && 'text-gray-400',
+                  )"
+                >
+                  <CalendarIcon class="mr-2 size-4" />
+                  {{ hireDateValue ? df.format(hireDateValue.toDate(getLocalTimeZone())) : '選擇日期' }}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent class="w-auto p-0">
+                <Calendar
+                  v-model="hireDateValue"
+                  :initial-focus="true"
+                  layout="month-and-year"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 

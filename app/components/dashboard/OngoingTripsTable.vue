@@ -1,10 +1,16 @@
 <script lang="ts" setup>
-import { ArrowRight, ChevronRight, Search } from 'lucide-vue-next'
+import type { DateValue } from '@internationalized/date'
+import { DateFormatter, getLocalTimeZone } from '@internationalized/date'
+import { ArrowRight, CalendarIcon, ChevronRight, Search } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 export interface Trip {
   date: string
@@ -28,6 +34,9 @@ const dateLabel = computed(() =>
 )
 
 const { getStatus } = useTripStatus()
+
+const df = new DateFormatter('zh-TW', { dateStyle: 'medium' })
+const filterDate = ref<DateValue>()
 </script>
 
 <template>
@@ -118,14 +127,27 @@ const { getStatus } = useTripStatus()
           </SelectGroup>
         </SelectContent>
       </Select>
-      <input
-        type="date"
-        class="
-          flex-1 cursor-pointer rounded-xs border border-neutral-200
-          bg-neutral-0 px-3 py-2 text-sm tracking-wider text-neutral-500
-          outline-none
-        "
-      >
+      <Popover>
+        <PopoverTrigger as-child>
+          <Button
+            variant="outline"
+            :class="cn(
+              'flex-1 justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wider shadow-none',
+              !filterDate && 'text-neutral-500',
+            )"
+          >
+            <CalendarIcon class="mr-2 size-4" />
+            {{ filterDate ? df.format(filterDate.toDate(getLocalTimeZone())) : '選擇日期' }}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent class="w-auto p-0">
+          <Calendar
+            v-model="filterDate"
+            :initial-focus="true"
+            layout="month-and-year"
+          />
+        </PopoverContent>
+      </Popover>
       <Select>
         <SelectTrigger class="flex-1">
           <SelectValue placeholder="請選擇運送狀態" />

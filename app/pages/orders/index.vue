@@ -1,11 +1,21 @@
 <script lang="ts" setup>
-import { ChevronRight, Luggage } from 'lucide-vue-next'
+import type { DateValue } from '@internationalized/date'
+import { DateFormatter, getLocalTimeZone } from '@internationalized/date'
+import { CalendarIcon, ChevronRight, Luggage } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 interface Location {
   id: string
@@ -38,16 +48,19 @@ const { data: orders } = await useFetch<Order[]>('/api/orders')
 
 const router = useRouter()
 
+const df = new DateFormatter('zh-TW', { dateStyle: 'medium' })
+
+const dateFrom = ref<DateValue>()
+const dateTo = ref<DateValue>()
+
 const filters = reactive({
   keyword: '',
   customerType: '',
   orderStatus: '',
   tripAssignment: '',
-  dateFrom: '',
-  dateTo: '',
 })
 
-const hasActiveFilters = computed(() => Object.values(filters).some(v => !!v))
+const hasActiveFilters = computed(() => Object.values(filters).some(v => !!v) || !!dateFrom.value || !!dateTo.value)
 
 const filteredOrders = computed(() => {
   if (!orders.value)
@@ -72,17 +85,17 @@ const filteredOrders = computed(() => {
     if (filters.tripAssignment && order.tripAssignment !== filters.tripAssignment)
       return false
 
-    if (filters.dateFrom) {
+    if (dateFrom.value) {
       if (!order.deliveryDate)
         return false
-      if (new Date(order.deliveryDate) < new Date(filters.dateFrom))
+      if (new Date(order.deliveryDate) < dateFrom.value.toDate(getLocalTimeZone()))
         return false
     }
 
-    if (filters.dateTo) {
+    if (dateTo.value) {
       if (!order.returnDate)
         return false
-      if (new Date(order.returnDate) > new Date(filters.dateTo))
+      if (new Date(order.returnDate) > dateTo.value.toDate(getLocalTimeZone()))
         return false
     }
 
@@ -114,8 +127,8 @@ function resetFilters() {
   filters.customerType = ''
   filters.orderStatus = ''
   filters.tripAssignment = ''
-  filters.dateFrom = ''
-  filters.dateTo = ''
+  dateFrom.value = undefined
+  dateTo.value = undefined
 }
 
 function goToOrderDetail(orderId: string) {
@@ -185,7 +198,7 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 p-8">
     <!-- 標題列 -->
     <div class="flex items-center justify-between">
       <h4 class="text-2xl font-bold tracking-wider text-neutral-900">
@@ -310,29 +323,59 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
         <!-- 寄件日期(去) -->
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium tracking-wider text-neutral-600">寄件日期(去)</label>
-          <input
-            v-model="filters.dateFrom"
-            type="date"
-            class="
-              rounded-xs border border-neutral-200 bg-white px-3 py-2 text-sm
-              tracking-wide text-neutral-900 outline-none
-              focus:border-neutral-400
-            "
-          >
+          <Popover>
+            <PopoverTrigger as-child>
+              <Button
+                variant="outline"
+                :class="cn(
+                  `
+                    w-full justify-start rounded-xs border-neutral-200 px-3 py-2
+                    text-sm font-normal tracking-wide shadow-none
+                  `,
+                  !dateFrom && 'text-neutral-400',
+                )"
+              >
+                <CalendarIcon class="mr-2 size-4" />
+                {{ dateFrom ? df.format(dateFrom.toDate(getLocalTimeZone())) : '選擇日期' }}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-auto p-0">
+              <Calendar
+                v-model="dateFrom"
+                :initial-focus="true"
+                layout="month-and-year"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         <!-- 寄件日期(回) -->
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium tracking-wider text-neutral-600">寄件日期(回)</label>
-          <input
-            v-model="filters.dateTo"
-            type="date"
-            class="
-              rounded-xs border border-neutral-200 bg-white px-3 py-2 text-sm
-              tracking-wide text-neutral-900 outline-none
-              focus:border-neutral-400
-            "
-          >
+          <Popover>
+            <PopoverTrigger as-child>
+              <Button
+                variant="outline"
+                :class="cn(
+                  `
+                    w-full justify-start rounded-xs border-neutral-200 px-3 py-2
+                    text-sm font-normal tracking-wide shadow-none
+                  `,
+                  !dateTo && 'text-neutral-400',
+                )"
+              >
+                <CalendarIcon class="mr-2 size-4" />
+                {{ dateTo ? df.format(dateTo.toDate(getLocalTimeZone())) : '選擇日期' }}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-auto p-0">
+              <Calendar
+                v-model="dateTo"
+                :initial-focus="true"
+                layout="month-and-year"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
     </div>

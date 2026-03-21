@@ -1,10 +1,13 @@
 <script lang="ts" setup>
+import type { DateValue } from '@internationalized/date'
+import { DateFormatter, getLocalTimeZone, parseDate } from '@internationalized/date'
 import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
   Box,
   CalendarDays,
+  CalendarIcon,
   Luggage,
   Minus,
   Plus,
@@ -18,7 +21,11 @@ import {
   X,
 } from 'lucide-vue-next'
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot } from 'reka-ui'
+import { Button } from '~/components/ui/button'
+import { Calendar } from '~/components/ui/calendar'
 import { Checkbox } from '~/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { cn } from '~/lib/utils'
 
 useHead({
   title: '新增訂單 - 行李運送系統',
@@ -81,6 +88,18 @@ const deliveryLocationId = ref('')
 const departureDate = ref('')
 const returnDate = ref('')
 
+const df = new DateFormatter('zh-TW', { dateStyle: 'medium' })
+
+const departureDateValue = computed<DateValue | undefined>({
+  get: () => departureDate.value ? parseDate(departureDate.value) : undefined,
+  set: val => departureDate.value = val ? val.toString() : '',
+})
+
+const returnDateValue = computed<DateValue | undefined>({
+  get: () => returnDate.value ? parseDate(returnDate.value) : undefined,
+  set: val => returnDate.value = val ? val.toString() : '',
+})
+
 const sameAsPassenger = ref(false)
 const recipientName = ref('')
 const recipientPhone = ref('')
@@ -112,6 +131,10 @@ const total = computed(() => baseSubtotal.value + (hasAddons.value ? addonSubtot
 // ── 商家代售 表單 ────────────────────────────────────
 const merchantStore = ref('')
 const deliveryDate = ref('')
+const deliveryDateValue = computed<DateValue | undefined>({
+  get: () => deliveryDate.value ? parseDate(deliveryDate.value) : undefined,
+  set: val => deliveryDate.value = val ? val.toString() : '',
+})
 const courier = ref('')
 const destination = ref('')
 const tripId = ref('')
@@ -155,7 +178,8 @@ function openAddTravelerModal() {
 
 function openEditTravelerModal(i: number) {
   const src = travelers.value[i]
-  if (!src) return
+  if (!src)
+    return
   editingTravelerIndex.value = i
   travelerDrafts.value = [{ ...src, specialItems: src.specialItems.map(s => ({ ...s })) }]
   showAddons.value = [src.hasAddon]
@@ -171,7 +195,8 @@ function confirmTraveler() {
   if (editingTravelerIndex.value === null) {
     for (let di = 0; di < travelerDrafts.value.length; di++) {
       const src = travelerDrafts.value[di]
-      if (!src) continue
+      if (!src)
+        continue
       const draft: Traveler = { ...src, specialItems: src.specialItems.map(s => ({ ...s })) }
       draft.hasAddon = showAddons.value[di] ?? false
       if (!draft.hasAddon) {
@@ -184,7 +209,8 @@ function confirmTraveler() {
   }
   else {
     const src = travelerDrafts.value[0]
-    if (!src) return
+    if (!src)
+      return
     const draft: Traveler = { ...src, specialItems: src.specialItems.map(s => ({ ...s })) }
     draft.hasAddon = showAddons.value[0] ?? false
     if (!draft.hasAddon) {
@@ -868,15 +894,27 @@ async function submitForm() {
                 <label
                   class="text-sm font-medium tracking-[0.7px] text-neutral-600"
                 >去程</label>
-                <input
-                  v-model="departureDate"
-                  type="date"
-                  class="
-                    rounded-xs border border-neutral-200 px-3 py-2 text-base
-                    text-neutral-900 outline-none
-                    focus:border-primary-300
-                  "
-                >
+                <Popover>
+                  <PopoverTrigger as-child>
+                    <Button
+                      variant="outline"
+                      :class="cn(
+                        'w-full justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wide shadow-none',
+                        !departureDateValue && 'text-neutral-400',
+                      )"
+                    >
+                      <CalendarIcon class="mr-2 size-4" />
+                      {{ departureDateValue ? df.format(departureDateValue.toDate(getLocalTimeZone())) : '選擇日期' }}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent class="w-auto p-0">
+                    <Calendar
+                      v-model="departureDateValue"
+                      :initial-focus="true"
+                      layout="month-and-year"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div
                 v-if="orderType === 'round-trip'"
@@ -885,15 +923,27 @@ async function submitForm() {
                 <label
                   class="text-sm font-medium tracking-[0.7px] text-neutral-600"
                 >回程</label>
-                <input
-                  v-model="returnDate"
-                  type="date"
-                  class="
-                    rounded-xs border border-neutral-200 px-3 py-2 text-base
-                    text-neutral-900 outline-none
-                    focus:border-primary-300
-                  "
-                >
+                <Popover>
+                  <PopoverTrigger as-child>
+                    <Button
+                      variant="outline"
+                      :class="cn(
+                        'w-full justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wide shadow-none',
+                        !returnDateValue && 'text-neutral-400',
+                      )"
+                    >
+                      <CalendarIcon class="mr-2 size-4" />
+                      {{ returnDateValue ? df.format(returnDateValue.toDate(getLocalTimeZone())) : '選擇日期' }}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent class="w-auto p-0">
+                    <Calendar
+                      v-model="returnDateValue"
+                      :initial-focus="true"
+                      layout="month-and-year"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
@@ -1033,24 +1083,27 @@ async function submitForm() {
                 <label
                   class="text-sm font-medium tracking-[0.7px] text-neutral-600"
                 >運送日期</label>
-                <div class="relative flex items-center">
-                  <input
-                    v-model="deliveryDate"
-                    type="date"
-                    class="
-                      w-full rounded-xs border border-neutral-200 px-3 py-2 pr-9
-                      text-base text-neutral-900 outline-none
-                      focus:border-primary-300
-                      [&::-webkit-calendar-picker-indicator]:hidden
-                    "
-                  >
-                  <CalendarDays
-                    class="
-                      pointer-events-none absolute right-3 size-5
-                      text-neutral-400
-                    "
-                  />
-                </div>
+                <Popover>
+                  <PopoverTrigger as-child>
+                    <Button
+                      variant="outline"
+                      :class="cn(
+                        'w-full justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wide shadow-none',
+                        !deliveryDateValue && 'text-neutral-400',
+                      )"
+                    >
+                      <CalendarIcon class="mr-2 size-4" />
+                      {{ deliveryDateValue ? df.format(deliveryDateValue.toDate(getLocalTimeZone())) : '選擇日期' }}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent class="w-auto p-0">
+                    <Calendar
+                      v-model="deliveryDateValue"
+                      :initial-focus="true"
+                      layout="month-and-year"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div class="flex flex-col gap-1.5">
                 <label
