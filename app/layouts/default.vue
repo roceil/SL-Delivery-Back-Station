@@ -2,6 +2,7 @@
 import { Search } from 'lucide-vue-next'
 
 const route = useRoute()
+const { extraItems } = useBreadcrumb()
 
 const routeLabels: Record<string, string> = {
   '/': '儀表板',
@@ -15,17 +16,22 @@ const routeLabels: Record<string, string> = {
   '/quick-receive': '快速收件',
 }
 
-const pageLabel = computed(() => {
+interface SecondCrumb {
+  label: string
+  to: string
+}
+
+const secondCrumb = computed<SecondCrumb | null>(() => {
   for (const [path, label] of Object.entries(routeLabels)) {
     if (path === '/') {
       if (route.path === '/')
-        return label
+        return { label, to: path }
       continue
     }
     if (route.path.startsWith(path))
-      return label
+      return { label, to: path }
   }
-  return '管理後台'
+  return null
 })
 </script>
 
@@ -54,16 +60,62 @@ const pageLabel = computed(() => {
           >
             管理後台
           </NuxtLink>
-          <span
-            class="px-2 text-base font-medium tracking-wider text-neutral-600"
-          >/</span>
-          <span
-            class="
-              px-1 py-0.5 text-base font-medium tracking-wider text-primary-300
-            "
-          >
-            {{ pageLabel }}
-          </span>
+          <template v-if="secondCrumb">
+            <span
+              class="px-2 text-base font-medium tracking-wider text-neutral-600"
+            >/</span>
+            <template v-if="extraItems.length > 0">
+              <NuxtLink
+                :to="secondCrumb.to"
+                class="
+                  px-1 py-0.5 text-base font-medium tracking-wider
+                  text-neutral-600
+                  hover:text-neutral-900
+                "
+              >
+                {{ secondCrumb.label }}
+              </NuxtLink>
+              <template
+                v-for="(item, index) in extraItems"
+                :key="index"
+              >
+                <span
+                  class="
+                    px-2 text-base font-medium tracking-wider text-neutral-600
+                  "
+                >/</span>
+                <NuxtLink
+                  v-if="item.to"
+                  :to="item.to"
+                  class="
+                    px-1 py-0.5 text-base font-medium tracking-wider
+                    text-primary-300
+                    hover:text-primary-400
+                  "
+                >
+                  {{ item.label }}
+                </NuxtLink>
+                <span
+                  v-else
+                  class="
+                    px-1 py-0.5 text-base font-medium tracking-wider
+                    text-primary-300
+                  "
+                >
+                  {{ item.label }}
+                </span>
+              </template>
+            </template>
+            <span
+              v-else
+              class="
+                px-1 py-0.5 text-base font-medium tracking-wider
+                text-primary-300
+              "
+            >
+              {{ secondCrumb.label }}
+            </span>
+          </template>
         </nav>
 
         <!-- Header actions -->

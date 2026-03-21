@@ -899,7 +899,11 @@ async function submitForm() {
                     <Button
                       variant="outline"
                       :class="cn(
-                        'w-full justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wide shadow-none',
+                        `
+                          w-full justify-start rounded-xs border-neutral-200
+                          px-3 py-2 text-sm font-normal tracking-wide
+                          shadow-none
+                        `,
                         !departureDateValue && 'text-neutral-400',
                       )"
                     >
@@ -928,7 +932,11 @@ async function submitForm() {
                     <Button
                       variant="outline"
                       :class="cn(
-                        'w-full justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wide shadow-none',
+                        `
+                          w-full justify-start rounded-xs border-neutral-200
+                          px-3 py-2 text-sm font-normal tracking-wide
+                          shadow-none
+                        `,
                         !returnDateValue && 'text-neutral-400',
                       )"
                     >
@@ -1088,7 +1096,11 @@ async function submitForm() {
                     <Button
                       variant="outline"
                       :class="cn(
-                        'w-full justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wide shadow-none',
+                        `
+                          w-full justify-start rounded-xs border-neutral-200
+                          px-3 py-2 text-sm font-normal tracking-wide
+                          shadow-none
+                        `,
                         !deliveryDateValue && 'text-neutral-400',
                       )"
                     >
@@ -1298,7 +1310,7 @@ async function submitForm() {
       </div>
 
       <!-- 右欄：費用明細 / 訂單摘要 -->
-      <div class="sticky -top-3 col-span-4">
+      <div class="sticky top-8 col-span-4">
         <!-- 雙程 / 單程：費用明細 -->
         <div
           v-if="orderType !== 'merchant'"

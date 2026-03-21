@@ -154,7 +154,10 @@ async function submitForm() {
                 <Button
                   variant="outline"
                   :class="cn(
-                    'mt-1 w-full justify-start rounded-md border-gray-300 px-3 py-2 text-sm font-normal shadow-sm',
+                    `
+                      mt-1 w-full justify-start rounded-md border-gray-300 px-3
+                      py-2 text-sm font-normal shadow-sm
+                    `,
                     !hireDateValue && 'text-gray-400',
                   )"
                 >

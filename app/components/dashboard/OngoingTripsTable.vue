@@ -132,7 +132,10 @@ const filterDate = ref<DateValue>()
           <Button
             variant="outline"
             :class="cn(
-              'flex-1 justify-start rounded-xs border-neutral-200 px-3 py-2 text-sm font-normal tracking-wider shadow-none',
+              `
+                flex-1 justify-start rounded-xs border-neutral-200 px-3 py-2
+                text-sm font-normal tracking-wider shadow-none
+              `,
               !filterDate && 'text-neutral-500',
             )"
           >
