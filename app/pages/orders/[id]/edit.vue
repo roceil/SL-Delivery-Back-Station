@@ -1,4 +1,12 @@
 <script lang="ts" setup>
+/**
+ * 以下欄位在 orders 資料表中尚未建立，目前以預設值代替：
+ *
+ * - recipient_name  VARCHAR  領件人姓名（預設值：'李美玲'）
+ * - recipient_phone VARCHAR  領件人電話（預設值：'0987654321'）
+ *
+ * 補齊後請移除 `|| '李美玲'` / `|| '0987654321'` 的 fallback 預設值。
+ */
 import type { DateValue } from '@internationalized/date'
 import { DateFormatter, getLocalTimeZone, parseDate } from '@internationalized/date'
 import {
@@ -360,7 +368,10 @@ async function submitForm() {
           "
         >
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
+            <div
+              class="flex items-center gap-2"
+              :class="hasAddons ? 'mb-4' : ''"
+            >
               <Sparkle class="size-5 text-neutral-600" />
               <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
                 加值服務

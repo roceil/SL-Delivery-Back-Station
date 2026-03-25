@@ -1,17 +1,14 @@
 <script lang="ts" setup>
-interface ColorScheme {
-  border: string
-  bg: string
-  text: string
-  label: string
-}
-
-interface StatusStat {
-  status: string
-  explanation: string
-  count: number
-  colors: ColorScheme
-}
+/**
+ * 以下為假資料欄位，尚未對應至資料庫，待後續補充 DB 欄位與 API：
+ *
+ * - courierType (夥伴類型)：DB 欄位 `courier_type` VARCHAR，值為 'long_term' | 'short_term'
+ * - salaryStatus (薪資結算)：DB 欄位 `salary_status` VARCHAR，值為 'paid' | 'unpaid'
+ *
+ * 補齊後請將 mockCouriers 假資料替換為真實 API 資料（useFetch('/api/couriers')）
+ */
+import { ChevronRight, Users } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
 
 interface Courier {
   id: number
@@ -26,175 +23,199 @@ interface Courier {
   hireDate: string
   createdAt: string
   updatedAt: string
+  courierType?: 'long_term' | 'short_term'
+  salaryStatus?: 'paid' | 'unpaid' | null
 }
 
 useHead({
   title: '夥伴總覽 - 物流管理系統',
 })
 
-const { data: couriers, refresh } = await useFetch<Courier[]>('/api/couriers')
+// 假資料（暫用，待 API 補上 courierType / salaryStatus 欄位後替換）
+const mockCouriers: Courier[] = [
+  {
+    id: 1,
+    employeeNumber: 'C001',
+    name: '林呈昕',
+    phone: '0912345678',
+    statusId: 1,
+    status: 'hire',
+    statusExplanation: '',
+    isAvailable: true,
+    totalDeliveries: 2,
+    hireDate: '2024-01-01',
+    createdAt: '2024-01-01',
+    updatedAt: '2024-01-01',
+    courierType: 'short_term',
+    salaryStatus: 'paid',
+  },
+  {
+    id: 2,
+    employeeNumber: 'C002',
+    name: '朱姓碼農',
+    phone: '0912345678',
+    statusId: 1,
+    status: 'hire',
+    statusExplanation: '',
+    isAvailable: true,
+    totalDeliveries: 2,
+    hireDate: '2024-01-01',
+    createdAt: '2024-01-01',
+    updatedAt: '2024-01-01',
+    courierType: 'long_term',
+    salaryStatus: null,
+  },
+  {
+    id: 3,
+    employeeNumber: 'C003',
+    name: '長樂公主',
+    phone: '0912345678',
+    statusId: 2,
+    status: 'fire',
+    statusExplanation: '',
+    isAvailable: false,
+    totalDeliveries: 2,
+    hireDate: '2023-06-01',
+    createdAt: '2023-06-01',
+    updatedAt: '2024-01-01',
+    courierType: 'long_term',
+    salaryStatus: null,
+  },
+]
 
-// 動態統計各狀態數量
-const statusStats = computed<StatusStat[]>(() => {
-  if (!couriers.value || couriers.value.length === 0) {
-    return []
-  }
+const couriers = ref<Courier[]>(mockCouriers)
 
-  // 統計每個狀態的數量
-  const statusCounts = new Map<string, { explanation: string, count: number }>()
+const router = useRouter()
 
-  for (const courier of couriers.value) {
-    const status = courier.status || '未設定'
-    const explanation = courier.statusExplanation || ''
-    const current = statusCounts.get(status) || { explanation, count: 0 }
-    statusCounts.set(status, { explanation, count: current.count + 1 })
-  }
-
-  // 顏色配置
-  const colorSchemes: ColorScheme[] = [
-    { border: 'border-green-200', bg: 'bg-green-50', text: 'text-green-600', label: 'text-green-500' },
-    { border: 'border-red-200', bg: 'bg-red-50', text: 'text-red-600', label: 'text-red-500' },
-    { border: 'border-purple-200', bg: 'bg-purple-50', text: 'text-purple-600', label: 'text-purple-500' },
-  ]
-
-  return Array.from(statusCounts.entries())
-    .map(([status, { explanation, count }], index): StatusStat => ({
-      status,
-      explanation,
-      count,
-      colors: colorSchemes[index % colorSchemes.length]!,
-    }))
-    .sort((a, b) => b.count - a.count)
+const filters = reactive({
+  keyword: '',
+  courierType: '',
+  hireStatus: '',
+  salaryStatus: '',
 })
 
-// 計算總配送次數
-const totalDeliveries = computed(() => {
-  if (!couriers.value || couriers.value.length === 0)
-    return 0
-  return couriers.value.reduce((sum, courier) => sum + (courier.totalDeliveries || 0), 0)
+const hasActiveFilters = computed(() => Object.values(filters).some(v => !!v))
+
+const totalDeliveries = computed(() =>
+  couriers.value.reduce((sum, c) => sum + (c.totalDeliveries || 0), 0),
+)
+
+const filteredCouriers = computed(() => {
+  return couriers.value.filter((courier) => {
+    if (filters.keyword) {
+      const kw = filters.keyword.toLowerCase()
+      const matchName = courier.name?.toLowerCase().includes(kw)
+      const matchEmployee = courier.employeeNumber?.toLowerCase().includes(kw)
+      if (!matchName && !matchEmployee)
+        return false
+    }
+
+    if (filters.hireStatus && courier.status !== filters.hireStatus)
+      return false
+
+    if (filters.courierType && courier.courierType !== filters.courierType)
+      return false
+
+    if (filters.salaryStatus && courier.salaryStatus !== filters.salaryStatus)
+      return false
+
+    return true
+  })
 })
 
-// 取得狀態顏色
-function getStatusColor(status: string | undefined) {
+function resetFilters() {
+  filters.keyword = ''
+  filters.courierType = ''
+  filters.hireStatus = ''
+  filters.salaryStatus = ''
+}
+
+function goToCourierDetail(id: number) {
+  router.push(`/couriers/${id}`)
+}
+
+interface BadgeInfo { type: 'gray' | 'blue' | 'green' | 'orange', label: string }
+
+const hireStatusBadgeMap: Record<string, BadgeInfo> = {
+  hire: { type: 'green', label: '雇用中' },
+  fire: { type: 'gray', label: '已離職' },
+}
+
+function getHireStatusBadge(status: string): BadgeInfo {
+  return hireStatusBadgeMap[status] ?? { type: 'gray', label: status || '-' }
+}
+
+const courierTypeBadgeMap: Record<string, BadgeInfo> = {
+  long_term: { type: 'blue', label: '長期合作' },
+  short_term: { type: 'orange', label: '短期支援' },
+}
+
+function getCourierTypeBadge(type?: string): BadgeInfo | null {
+  if (!type)
+    return null
+  return courierTypeBadgeMap[type] ?? null
+}
+
+const salaryStatusBadgeMap: Record<string, BadgeInfo> = {
+  paid: { type: 'green', label: '已支付' },
+  unpaid: { type: 'orange', label: '未支付' },
+}
+
+function getSalaryStatusBadge(status?: string | null): BadgeInfo | null {
   if (!status)
-    return 'bg-gray-100 text-gray-800'
-
-  const colorMap: Record<string, string> = {
-    hire: 'bg-green-100 text-green-800',
-    fire: 'bg-red-100 text-red-800',
-  }
-  return colorMap[status] || 'bg-gray-100 text-gray-800'
+    return null
+  return salaryStatusBadgeMap[status] ?? null
 }
 
-// 格式化日期
-function formatDate(dateString: string | null | undefined) {
-  if (!dateString)
-    return '-'
-  return new Date(dateString).toLocaleDateString('zh-TW')
-}
+const tableColumns = [
+  { key: 'type', label: '類型', width: '1fr' },
+  { key: 'name', label: '夥伴名稱', width: '1fr' },
+  { key: 'employeeNumber', label: '員工編號', width: '1fr' },
+  { key: 'phone', label: '聯絡方式', width: '1fr' },
+  { key: 'hireStatus', label: '雇用狀態', width: '1fr' },
+  { key: 'totalDeliveries', label: '配送次數', width: '1fr' },
+  { key: 'salaryStatus', label: '薪資結算', width: '1fr' },
+  { key: 'action', label: '', width: '44px' },
+]
 
-// 刪除夥伴
-async function deleteCourier(id: number | undefined) {
-  if (!id)
-    return
-
-  // eslint-disable-next-line no-alert
-  if (!confirm('確定要刪除這位夥伴嗎？'))
-    return
-
-  try {
-    await $fetch(`/api/couriers/${id}`, {
-      method: 'DELETE',
-    })
-    await refresh()
-  }
-  catch (error) {
-    console.error('刪除夥伴失敗:', error)
-    alert('刪除失敗，請稍後再試')
-  }
-}
+const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
 </script>
 
 <template>
-  <div class="rounded-lg bg-white shadow">
-    <div class="px-4 py-5 sm:p-6">
-      <div class="mb-6 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-900">
-          夥伴管理
-        </h1>
-        <NuxtLink
-          to="/couriers/new"
-          class="
-            rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white
-            hover:bg-blue-500
-            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            focus:outline-none
-          "
+  <div class="flex flex-col gap-4 p-8">
+    <!-- 標題列 -->
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h4 class="text-2xl font-bold tracking-wider text-neutral-900">
+          夥伴總覽
+        </h4>
+        <div
+          class="flex items-center gap-1 text-sm tracking-wide text-neutral-600"
         >
-          新增夥伴
-        </NuxtLink>
+          <span>總配送次數</span>
+          <span class="font-medium text-primary-400">{{ totalDeliveries }} 次</span>
+        </div>
       </div>
-
-      <!-- 統計資訊 -->
-      <div
-        v-if="couriers && couriers.length > 0"
+      <NuxtLink
+        to="/couriers/new"
         class="
-          mt-6 grid grid-cols-1 gap-3 rounded-lg bg-gray-200 px-3 py-4
-          sm:grid-cols-2
-          lg:grid-cols-4
+          hover:bg-primary-50
+          rounded-xs border border-primary-400 px-4 py-2 text-sm font-medium
+          tracking-wider text-primary-400 transition-colors
         "
       >
-        <!-- 總數統計 -->
-        <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <div class="text-2xl font-bold text-gray-900">
-            {{ couriers.length }}
-          </div>
-          <div class="text-sm text-gray-500">
-            總夥伴數量
-          </div>
-        </div>
+        + 新增夥伴
+      </NuxtLink>
+    </div>
 
-        <!-- 動態狀態統計 -->
-        <div
-          v-for="stat in statusStats"
-          :key="stat.status"
-          class="rounded-lg border p-4"
-          :class="[
-            stat.colors.border,
-            stat.colors.bg,
-          ]"
-        >
-          <div
-            class="text-2xl font-bold"
-            :class="[stat.colors.text]"
-          >
-            {{ stat.count }}
-          </div>
-          <div
-            class="text-sm"
-            :class="[stat.colors.label]"
-          >
-            {{ stat.explanation }}
-          </div>
-        </div>
-
-        <!-- 總配送次數 -->
-        <div class="rounded-lg border border-purple-200 bg-purple-50 p-4">
-          <div class="text-2xl font-bold text-purple-600">
-            {{ totalDeliveries }}
-          </div>
-          <div class="text-sm text-purple-500">
-            總配送次數
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if="!couriers || couriers.length === 0"
-        class="py-12 text-center"
-      >
+    <!-- 篩選列 -->
+    <div class="flex items-center gap-3">
+      <!-- 關鍵字搜尋 -->
+      <div class="relative">
         <svg
-          class="mx-auto h-12 w-12 text-gray-400"
+          class="
+            absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400
+          "
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -203,222 +224,224 @@ async function deleteCourier(id: number | undefined) {
             stroke-linecap="round"
             stroke-linejoin="round"
             stroke-width="2"
-            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
           />
         </svg>
-        <h3 class="mt-2 text-sm font-medium text-gray-900">
-          沒有夥伴
-        </h3>
-        <p class="mt-1 text-sm text-gray-500">
-          開始新增第一位夥伴。
-        </p>
-        <div class="mt-6">
-          <NuxtLink
-            to="/couriers/new"
-            class="
-              inline-flex items-center rounded-md border border-transparent
-              bg-blue-600 px-4 py-2 text-sm font-medium text-white
-              hover:bg-blue-700
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-          >
-            新增夥伴
-          </NuxtLink>
-        </div>
+        <input
+          v-model="filters.keyword"
+          type="text"
+          placeholder="輸入夥伴名稱或員工編號"
+          class="
+            w-[315px] rounded-xs border border-neutral-200 bg-white py-2 pr-3
+            pl-9 text-sm tracking-wide text-neutral-900 outline-none
+            placeholder:text-neutral-400
+            focus:border-neutral-400
+          "
+        >
       </div>
 
-      <div
-        v-else
-        class="
-          mt-6 overflow-hidden bg-white shadow ring-1 ring-black
-          md:rounded-lg
-        "
+      <!-- 夥伴類型 -->
+      <Select v-model="filters.courierType">
+        <SelectTrigger class="w-[160px] bg-white text-sm">
+          <SelectValue placeholder="請選擇夥伴類型" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="long_term">
+              長期合作
+            </SelectItem>
+            <SelectItem value="short_term">
+              短期支援
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+
+      <!-- 雇用狀態 -->
+      <Select v-model="filters.hireStatus">
+        <SelectTrigger class="w-[160px] bg-white text-sm">
+          <SelectValue placeholder="請選擇雇用狀態" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="hire">
+              雇用中
+            </SelectItem>
+            <SelectItem value="fire">
+              已離職
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+
+      <!-- 薪資結算狀態 -->
+      <Select v-model="filters.salaryStatus">
+        <SelectTrigger class="w-[180px] bg-white text-sm">
+          <SelectValue placeholder="請選擇薪資結算狀態" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="paid">
+              已支付
+            </SelectItem>
+            <SelectItem value="unpaid">
+              未支付
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+
+      <!-- 清除篩選條件 -->
+      <button
+        type="button"
+        class="px-3 py-2 text-sm tracking-wider transition-colors"
+        :class="[
+          hasActiveFilters
+            ? 'cursor-pointer text-neutral-600 hover:text-neutral-900'
+            : 'cursor-not-allowed text-neutral-400',
+        ]"
+        :disabled="!hasActiveFilters"
+        @click="resetFilters"
       >
-        <table class="min-w-full divide-y divide-gray-300">
-          <thead class="bg-gray-50">
-            <tr>
-              <th
-                scope="col"
-                class="
-                  px-6 py-3 text-left text-xs font-medium tracking-wide
-                  text-gray-500 uppercase
-                "
-              >
-                夥伴資訊
-              </th>
-              <th
-                scope="col"
-                class="
-                  px-6 py-3 text-left text-xs font-medium tracking-wide
-                  text-gray-500 uppercase
-                "
-              >
-                員工編號
-              </th>
-              <th
-                scope="col"
-                class="
-                  px-6 py-3 text-left text-xs font-medium tracking-wide
-                  text-gray-500 uppercase
-                "
-              >
-                聯絡方式
-              </th>
-              <th
-                scope="col"
-                class="
-                  px-6 py-3 text-left text-xs font-medium tracking-wide
-                  text-gray-500 uppercase
-                "
-              >
-                狀態
-              </th>
-              <th
-                scope="col"
-                class="
-                  px-6 py-3 text-left text-xs font-medium tracking-wide
-                  text-gray-500 uppercase
-                "
-              >
-                配送次數
-              </th>
-              <th
-                scope="col"
-                class="
-                  px-6 py-3 text-left text-xs font-medium tracking-wide
-                  text-gray-500 uppercase
-                "
-              >
-                雇用日期
-              </th>
-              <th
-                scope="col"
-                class="relative px-6 py-3"
-              >
-                <span class="sr-only">操作</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white">
-            <tr
-              v-for="courier in couriers"
-              :key="courier.id"
-              class="hover:bg-gray-50"
+        清除篩選條件
+      </button>
+    </div>
+
+    <!-- 表格 -->
+    <div class="flex flex-col gap-3">
+      <!-- 有資料 -->
+      <template v-if="filteredCouriers.length > 0">
+        <div class="rounded-sm bg-white">
+          <!-- 表頭 -->
+          <div
+            class="grid gap-x-4 border-b border-neutral-200 px-4 py-3"
+            :style="{ gridTemplateColumns }"
+          >
+            <div
+              v-for="col in tableColumns"
+              :key="col.key"
+              class="text-sm font-medium tracking-[0.7px] text-neutral-600"
             >
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div
-                    class="
-                      flex h-8 w-8 flex-shrink-0 items-center justify-center
-                      rounded-full bg-blue-100 text-sm font-medium text-blue-600
-                    "
-                  >
-                    👤
-                  </div>
-                  <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">
-                      {{ courier.name }}
-                    </div>
-                    <div class="text-sm text-gray-500">
-                      ID: {{ courier.id }}
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span
-                  v-if="courier.employeeNumber"
-                  class="
-                    inline-flex rounded-full bg-gray-100 px-2 text-xs leading-5
-                    font-semibold text-gray-800
-                  "
-                >
-                  {{ courier.employeeNumber }}
-                </span>
+              {{ col.label }}
+            </div>
+          </div>
+
+          <!-- 資料列 -->
+          <div class="divide-y divide-neutral-200">
+            <div
+              v-for="courier in filteredCouriers"
+              :key="courier.id"
+              class="
+                grid min-h-[60px] cursor-pointer items-center gap-x-4 px-4 py-3
+                hover:bg-neutral-50
+              "
+              :style="{ gridTemplateColumns }"
+              @click="goToCourierDetail(courier.id)"
+            >
+              <!-- 類型 -->
+              <div class="">
+                <Badge
+                  v-if="getCourierTypeBadge(courier.courierType)"
+                  :type="getCourierTypeBadge(courier.courierType)!.type"
+                  :label="getCourierTypeBadge(courier.courierType)!.label"
+                  size="lg"
+                />
                 <span
                   v-else
-                  class="text-gray-400"
-                >
-                  未設定
-                </span>
-              </td>
-              <td class="px-6 py-4 text-sm text-gray-900">
-                <div v-if="courier.phone">
-                  {{ courier.phone }}
-                </div>
-                <div
-                  v-else
-                  class="text-gray-400"
-                >
-                  未設定
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
+                  class="text-sm text-neutral-400"
+                >-</span>
+              </div>
+
+              <!-- 夥伴名稱 -->
+              <div
+                class="
+                  truncate text-sm font-medium tracking-[0.7px] text-neutral-900
+                "
+              >
+                {{ courier.name || '-' }}
+              </div>
+
+              <!-- 員工編號 -->
+              <div class="text-sm tracking-[0.7px] text-neutral-900">
+                {{ courier.employeeNumber || '-' }}
+              </div>
+
+              <!-- 聯絡方式 -->
+              <div class="text-sm tracking-[0.7px] text-neutral-900">
+                {{ courier.phone || '-' }}
+              </div>
+
+              <!-- 雇用狀態 -->
+              <div class="flex flex-col gap-0.5">
+                <Badge
+                  :type="getHireStatusBadge(courier.status).type"
+                  :label="getHireStatusBadge(courier.status).label"
+                  size="lg"
+                  class="self-start"
+                />
                 <span
-                  :class="getStatusColor(courier.status)"
-                  class="
-                    inline-flex rounded-full px-2 text-xs leading-5
-                    font-semibold
-                  "
-                >
-                  {{ courier.statusExplanation }}
-                </span>
-                <div
-                  v-if="courier.isAvailable !== null"
-                  class="mt-1 text-xs"
-                  :class="courier.isAvailable ? 'text-green-600' : `
-                    text-gray-400
+                  class="text-[12px] tracking-[0.6px]"
+                  :class="courier.isAvailable ? 'text-neutral-900' : `
+                    text-neutral-500
                   `"
                 >
-                  {{ courier.isAvailable ? '✓ 可執行任務' : '✗ 無法執行' }}
-                </div>
-              </td>
-              <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
-                <div class="flex items-center">
-                  <svg
-                    class="mr-1 h-4 w-4 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                    />
-                  </svg>
-                  {{ courier.totalDeliveries || 0 }} 次
-                </div>
-              </td>
-              <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
-                {{ formatDate(courier.hireDate) }}
-              </td>
-              <td
-                class="
-                  px-6 py-4 text-right text-sm font-medium whitespace-nowrap
-                "
-              >
-                <div class="flex space-x-2">
-                  <NuxtLink
-                    :to="`/couriers/${courier.id}/edit`"
-                    class="text-blue-600 hover:text-blue-900"
-                  >
-                    編輯
-                  </NuxtLink>
-                  <button
-                    class="text-red-600 hover:text-red-900"
-                    @click="deleteCourier(courier.id)"
-                  >
-                    刪除
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                  {{ courier.isAvailable ? '可執行任務' : '無法執行任務' }}
+                </span>
+              </div>
+
+              <!-- 配送次數 -->
+              <div class="text-sm tracking-[0.7px] text-neutral-900">
+                {{ courier.totalDeliveries || 0 }} 次
+              </div>
+
+              <!-- 薪資結算 -->
+              <div class="">
+                <Badge
+                  v-if="getSalaryStatusBadge(courier.salaryStatus)"
+                  :type="getSalaryStatusBadge(courier.salaryStatus)!.type"
+                  :label="getSalaryStatusBadge(courier.salaryStatus)!.label"
+                  size="lg"
+                />
+                <span
+                  v-else
+                  class="text-sm text-neutral-400"
+                >-</span>
+              </div>
+
+              <!-- 操作 -->
+              <div class="flex justify-center">
+                <ChevronRight class="size-4 text-neutral-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 無篩選條件且無夥伴 -->
+      <template v-else-if="!hasActiveFilters">
+        <div
+          class="flex flex-col items-center gap-3 rounded-md bg-neutral-100 p-8"
+        >
+          <Users class="size-10 text-neutral-400" />
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-base font-bold tracking-wider text-neutral-900">尚無夥伴</span>
+            <span class="text-xs tracking-wide text-neutral-600">請先新增夥伴</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- 有篩選條件但無結果 -->
+      <template v-else>
+        <div
+          class="flex flex-col items-center gap-3 rounded-md bg-neutral-100 p-8"
+        >
+          <Users class="size-10 text-neutral-400" />
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-base font-bold tracking-wider text-neutral-900">查無夥伴</span>
+            <span class="text-xs tracking-wide text-neutral-600">請重新輸入篩選條件</span>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>

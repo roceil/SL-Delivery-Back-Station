@@ -1,4 +1,31 @@
 <script lang="ts" setup>
+/**
+ * 以下區塊含有假資料或待補充的 DB 欄位：
+ *
+ * 【orders 資料表 — 待新增欄位】
+ * - delivery_status   VARCHAR  配送狀態（例：'pending_delivery' | 'delivered'）
+ *                              對應畫面：Header 的「待交付」Badge
+ * - payment_status    VARCHAR  付款狀態（例：'paid' | 'unpaid'）
+ *                              對應畫面：Header 的「已付款」Badge、費用明細的付款狀態
+ * - claim_status      VARCHAR  認領分配狀態（例：'claimed_unassigned' | 'assigned'）
+ *                              對應畫面：Header 的「認領未分配」Badge
+ * - recipient_name    VARCHAR  領件人姓名（對應畫面：領件資訊區塊）
+ * - recipient_phone   VARCHAR  領件人電話（對應畫面：領件資訊區塊）
+ * - created_at        TIMESTAMP 訂單建立時間（對應畫面：訂單資訊區塊）
+ * - updated_at        TIMESTAMP 最後更新時間（對應畫面：訂單資訊區塊）
+ *
+ * 【order_fees 子資料表 — 待新增】
+ * 用於儲存費用明細，關聯至 orders.id
+ * - id          SERIAL   PK
+ * - order_id    FK → orders.id
+ * - plan        VARCHAR  服務方案（例：'雙程套票'）
+ * - type        VARCHAR  加值服務類型（例：'大型行李'，可 NULL）
+ * - unit_price  NUMERIC  單價
+ * - quantity    INTEGER  數量
+ * - subtotal    NUMERIC  小計
+ *
+ * 補齊後請將各區塊的硬編碼假資料替換為 order 物件的對應欄位。
+ */
 import {
   AlertCircle,
   ArrowLeftRight,

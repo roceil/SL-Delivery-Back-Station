@@ -1,10 +1,18 @@
 <script lang="ts" setup>
-const route = useRoute()
-const router = useRouter()
-const merchantId = route.params.id as string
+import { ArrowLeft, MapPin, Settings2, Store, UserRound } from 'lucide-vue-next'
 
 useHead({
-  title: '編輯商家 - 行李運送系統',
+  title: '編輯商家 - 物流管理系統',
+})
+
+const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb()
+
+onMounted(() => {
+  setBreadcrumb({ label: '編輯商家' })
+})
+
+onBeforeRouteLeave(() => {
+  clearBreadcrumb()
 })
 
 interface Merchant {
@@ -25,368 +33,512 @@ interface Merchant {
   remarks: string
   createdAt: string
   updatedAt: string
+  latitude?: number | null
+  longitude?: number | null
 }
 
-// 取得商家類型選項
-const { data: types } = await useFetch('/api/stations/types')
+const route = useRoute()
+const router = useRouter()
+const merchantId = route.params.id as string
 
-// 取得商家現有資料
-const { data: merchant, error } = await useFetch<Merchant>(`/api/merchants/${merchantId}`)
+const { data: stationTypes } = await useFetch<{ id: number, name: string }[]>('/api/stations/types')
 
-if (error.value || !merchant.value) {
-  throw createError({
-    statusCode: 404,
-    message: '找不到此商家',
-  })
+const { data: merchantData, error } = await useFetch<Merchant>(`/api/merchants/${merchantId}`)
+
+if (error.value || !merchantData.value) {
+  throw createError({ statusCode: 404, message: '找不到此商家' })
 }
 
-// 初始化表單資料
+const merchant = merchantData as Ref<Merchant>
+
 const form = ref({
   name: merchant.value.name || '',
   contactPerson: merchant.value.contactPerson || '',
   phone: merchant.value.phone || '',
   email: merchant.value.email || '',
   address: merchant.value.address || '',
-  type: merchant.value.type || 1,
+  type: merchant.value.type,
   area: merchant.value.area || 'A',
-  isActive: merchant.value.isActive !== undefined ? merchant.value.isActive : true,
-  isCollaborate: merchant.value.isCollaborate || false,
-  maxUsageCounts: merchant.value.maxUsageCounts || null,
-  remarks: merchant.value.remarks || '',
+  isActive: merchant.value.isActive ?? false,
+  isCollaborate: merchant.value.isCollaborate ?? false,
+  latitude: merchant.value.latitude?.toString() || '',
+  longitude: merchant.value.longitude?.toString() || '',
 })
 
-const isSubmitting = ref(false)
-const errorMessage = ref('')
-const successMessage = ref('')
+const selectedTypeName = computed(() => {
+  return stationTypes.value?.find(t => t.id === form.value.type)?.name ?? ''
+})
 
-async function handleSubmit() {
-  if (isSubmitting.value)
-    return
-
-  errorMessage.value = ''
-  successMessage.value = ''
-
-  if (!form.value.name || !form.value.address) {
-    errorMessage.value = '請填寫商家名稱和地址'
-    return
-  }
-
-  isSubmitting.value = true
-
+async function submitForm() {
   try {
-    const response = await $fetch<{ success: boolean }>(`/api/merchants/${merchantId}`, {
-      method: 'PUT' as const,
+    await $fetch(`/api/merchants/${merchantId}`, {
+      method: 'PUT',
       body: form.value,
     })
-
-    if (response.success) {
-      successMessage.value = '商家更新成功！'
-      setTimeout(() => {
-        router.push(`/merchants/${merchantId}`)
-      }, 1500)
-    }
+    router.push(`/merchants/${merchantId}`)
   }
-  catch (error: unknown) {
-    console.error('更新商家失敗:', error)
-    errorMessage.value = (error as { data?: { message?: string } })?.data?.message || '更新商家失敗，請稍後再試'
-  }
-  finally {
-    isSubmitting.value = false
+  catch (err) {
+    console.error('更新商家失敗:', err)
   }
 }
 </script>
 
 <template>
-  <div class="rounded-lg bg-white shadow">
-    <div class="px-4 py-5 sm:p-6">
-      <div class="mb-6 flex items-center gap-4">
-        <NuxtLink
-          :to="`/merchants/${merchantId}`"
+  <div class="flex min-h-full flex-col gap-4 bg-neutral-100 p-8">
+    <!-- 頁面標題 -->
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="
+          flex items-center justify-center rounded-full p-2
+          hover:bg-neutral-200
+        "
+        @click="router.push(`/merchants/${merchantId}`)"
+      >
+        <ArrowLeft class="size-4 text-neutral-900" />
+      </button>
+      <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+        編輯商家
+      </h4>
+    </div>
+
+    <!-- 主要內容 -->
+    <form
+      class="grid grid-cols-12 items-start gap-4"
+      @submit.prevent="submitForm"
+    >
+      <!-- 左欄 -->
+      <div class="col-span-8 flex flex-col gap-4">
+        <!-- 商家資訊 -->
+        <div
           class="
-            rounded-md border border-gray-300 bg-white px-3 py-2 text-sm
-            font-medium text-gray-700 shadow-sm
-            hover:bg-gray-50
-            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            focus:outline-none
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
           "
         >
-          ← 返回
-        </NuxtLink>
-        <h1 class="text-2xl font-bold text-gray-900">
-          編輯商家
-        </h1>
-      </div>
-
-      <!-- 錯誤訊息 -->
-      <div
-        v-if="errorMessage"
-        class="mb-4 rounded-md bg-red-50 p-4"
-      >
-        <div class="flex">
-          <div class="text-sm text-red-800">
-            {{ errorMessage }}
-          </div>
-        </div>
-      </div>
-
-      <!-- 成功訊息 -->
-      <div
-        v-if="successMessage"
-        class="mb-4 rounded-md bg-green-50 p-4"
-      >
-        <div class="flex">
-          <div class="text-sm text-green-800">
-            {{ successMessage }}
-          </div>
-        </div>
-      </div>
-
-      <form
-        class="space-y-6"
-        @submit.prevent="handleSubmit"
-      >
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <label
-              for="name"
-              class="block text-sm font-medium text-gray-700"
-            >商家名稱 *</label>
-            <input
-              id="name"
-              v-model="form.name"
-              type="text"
-              required
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
+          <div class="mb-4 flex items-center gap-2">
+            <UserRound class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              商家資訊
+            </h2>
           </div>
 
-          <div>
-            <label
-              for="contactPerson"
-              class="block text-sm font-medium text-gray-700"
-            >聯絡人</label>
-            <input
-              id="contactPerson"
-              v-model="form.contactPerson"
-              type="text"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-          </div>
-
-          <div>
-            <label
-              for="phone"
-              class="block text-sm font-medium text-gray-700"
-            >聯絡電話</label>
-            <input
-              id="phone"
-              v-model="form.phone"
-              type="tel"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-          </div>
-
-          <div>
-            <label
-              for="email"
-              class="block text-sm font-medium text-gray-700"
-            >電子郵件</label>
-            <input
-              id="email"
-              v-model="form.email"
-              type="email"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-          </div>
-
-          <div class="sm:col-span-2">
-            <label
-              for="address"
-              class="block text-sm font-medium text-gray-700"
-            >商家地址 *</label>
-            <textarea
-              id="address"
-              v-model="form.address"
-              rows="2"
-              required
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            ></textarea>
-          </div>
-
-          <div>
-            <label
-              for="type"
-              class="block text-sm font-medium text-gray-700"
-            >商家類型</label>
-            <select
-              id="type"
-              v-model.number="form.type"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-              <option
-                v-for="type in types"
-                :key="type.id"
-                :value="type.id"
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
               >
-                {{ type.name }}
-              </option>
-            </select>
+                商家名稱
+              </label>
+              <input
+                v-model="form.name"
+                type="text"
+                required
+                placeholder="建議填寫 Google 地圖上的商家名稱"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                聯絡人
+              </label>
+              <input
+                v-model="form.contactPerson"
+                type="text"
+                placeholder="王大明"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                聯絡電話
+              </label>
+              <input
+                v-model="form.phone"
+                type="tel"
+                placeholder="0912345678"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                Email
+              </label>
+              <input
+                v-model="form.email"
+                type="email"
+                placeholder="helloworld@gmail.com"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                地址
+              </label>
+              <input
+                v-model="form.address"
+                type="text"
+                required
+                placeholder="屏東縣琉球鄉仁愛路53號"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- 營運設定 -->
+        <div
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <Settings2 class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              營運設定
+            </h2>
           </div>
 
-          <div>
-            <label
-              for="area"
-              class="block text-sm font-medium text-gray-700"
-            >區域</label>
-            <select
-              id="area"
-              v-model="form.area"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-              <option value="A">
-                區域 A
-              </option>
-              <option value="B">
-                區域 B
-              </option>
-              <option value="C">
-                區域 C
-              </option>
-              <option value="D">
-                區域 D
-              </option>
-            </select>
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                商家類型
+              </label>
+              <Select v-model="form.type">
+                <SelectTrigger
+                  class="
+                    rounded-xs border-neutral-200 bg-white text-neutral-900
+                  "
+                >
+                  <SelectValue placeholder="請選擇商家類型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem
+                      v-for="t in stationTypes"
+                      :key="t.id"
+                      :value="t.id"
+                    >
+                      {{ t.name }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                區域
+              </label>
+              <Select v-model="form.area">
+                <SelectTrigger
+                  class="
+                    rounded-xs border-neutral-200 bg-white text-neutral-900
+                  "
+                >
+                  <SelectValue placeholder="請選擇區域" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="A">
+                      區域 A
+                    </SelectItem>
+                    <SelectItem value="B">
+                      區域 B
+                    </SelectItem>
+                    <SelectItem value="C">
+                      區域 C
+                    </SelectItem>
+                    <SelectItem value="D">
+                      區域 D
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <!-- 啟用狀態 / 合作狀態 -->
+            <div class="flex gap-4">
+              <div class="flex flex-1 items-center justify-between">
+                <span
+                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+                >
+                  啟用狀態
+                </span>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm tracking-[0.7px] text-neutral-600">
+                    {{ form.isActive ? '啟用中' : '停用' }}
+                  </span>
+                  <button
+                    type="button"
+                    class="
+                      relative inline-flex h-6 w-11 shrink-0 cursor-pointer
+                      rounded-full transition-colors duration-200
+                    "
+                    :class="form.isActive ? 'bg-primary-400' : 'bg-neutral-300'"
+                    @click="form.isActive = !form.isActive"
+                  >
+                    <span
+                      class="
+                        mt-0.5 inline-block size-5 rounded-full bg-white shadow
+                        transition-transform duration-200
+                      "
+                      :class="form.isActive ? 'translate-x-5' : `
+                        translate-x-0.5
+                      `"
+                    ></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="w-px bg-neutral-200"></div>
+
+              <div class="flex flex-1 items-center justify-between">
+                <span
+                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+                >
+                  合作狀態
+                </span>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm tracking-[0.7px] text-neutral-600">
+                    {{ form.isCollaborate ? '合作中' : '暫停合作' }}
+                  </span>
+                  <button
+                    type="button"
+                    class="
+                      relative inline-flex h-6 w-11 shrink-0 cursor-pointer
+                      rounded-full transition-colors duration-200
+                    "
+                    :class="form.isCollaborate ? 'bg-primary-400' : `
+                      bg-neutral-300
+                    `"
+                    @click="form.isCollaborate = !form.isCollaborate"
+                  >
+                    <span
+                      class="
+                        mt-0.5 inline-block size-5 rounded-full bg-white shadow
+                        transition-transform duration-200
+                      "
+                      :class="form.isCollaborate ? 'translate-x-5' : `
+                        translate-x-0.5
+                      `"
+                    ></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 經緯度 -->
+        <div
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <MapPin class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              經緯度
+            </h2>
           </div>
 
-          <div>
-            <label
-              for="maxUsageCounts"
-              class="block text-sm font-medium text-gray-700"
-            >最大使用次數</label>
-            <input
-              id="maxUsageCounts"
-              v-model.number="form.maxUsageCounts"
-              type="number"
-              min="0"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            >
-          </div>
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                經度
+                <span
+                  class="text-xs font-normal tracking-[0.6px] text-neutral-400"
+                >（選填）</span>
+              </label>
+              <input
+                v-model="form.longitude"
+                type="text"
+                placeholder="120.3743899"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
 
-          <div class="flex flex-col gap-2 text-sm text-gray-500">
-            <p>票券 ID: {{ merchant?.voucherId || '尚未生成' }}</p>
-            <p class="text-xs">
-              提示：經緯度資訊請至「運送點管理」頁面編輯
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >
+                緯度
+                <span
+                  class="text-xs font-normal tracking-[0.6px] text-neutral-400"
+                >（選填）</span>
+              </label>
+              <input
+                v-model="form.latitude"
+                type="text"
+                placeholder="22.3372317"
+                class="
+                  rounded-xs border border-neutral-200 px-3 py-2 text-base
+                  tracking-[0.8px] text-neutral-900 outline-none
+                  placeholder:text-neutral-400
+                  focus:border-neutral-400
+                "
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右欄：預覽 -->
+      <div
+        class="
+          sticky top-8 col-span-4 shrink-0 rounded-md bg-white p-6
+          shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <div class="mb-4 flex items-center gap-2">
+          <Store class="size-5 text-neutral-600" />
+          <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+            預覽
+          </h2>
+        </div>
+
+        <!-- 預覽卡片 -->
+        <div class="mb-4 rounded-sm border border-neutral-200 bg-white p-4">
+          <div class="flex flex-col gap-4">
+            <p class="text-lg font-bold tracking-[0.9px] text-primary-400">
+              {{ form.name || '-' }}
             </p>
-          </div>
 
-          <div></div>
+            <!-- 商家資訊 -->
+            <div class="flex flex-col gap-3">
+              <div class="h-px bg-neutral-200"></div>
+              <p class="text-base font-bold tracking-[0.8px] text-neutral-900">
+                商家資訊
+              </p>
+              <div class="flex flex-col gap-2 text-base tracking-[0.8px]">
+                <div class="flex items-start gap-3">
+                  <span class="min-w-[76px] text-neutral-600">聯絡人</span>
+                  <span class="text-neutral-900">{{ form.contactPerson || '-' }}</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <span class="min-w-[76px] text-neutral-600">聯絡電話</span>
+                  <span class="text-neutral-900">{{ form.phone || '-' }}</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <span class="min-w-[76px] text-neutral-600">Email</span>
+                  <span class="break-all text-neutral-900">{{ form.email || '-' }}</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <span class="min-w-[76px] text-neutral-600">地址</span>
+                  <span class="text-neutral-900">{{ form.address || '-' }}</span>
+                </div>
+              </div>
+            </div>
 
-          <div class="flex items-center gap-4">
-            <label class="flex items-center gap-2">
-              <input
-                v-model="form.isActive"
-                type="checkbox"
-                class="
-                  rounded border-gray-300 text-blue-600
-                  focus:ring-blue-500
-                "
-              >
-              <span class="text-sm font-medium text-gray-700">啟用狀態</span>
-            </label>
+            <!-- 營運設定 -->
+            <div class="flex flex-col gap-3">
+              <div class="h-px bg-neutral-200"></div>
+              <p class="text-base font-bold tracking-[0.8px] text-neutral-900">
+                營運設定
+              </p>
+              <div class="flex flex-col gap-2 text-base tracking-[0.8px]">
+                <div class="flex items-center gap-3">
+                  <span class="min-w-[76px] text-neutral-600">商家類型</span>
+                  <span class="text-neutral-900">{{ selectedTypeName || '-' }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="min-w-[76px] text-neutral-600">區域</span>
+                  <span class="text-neutral-900">{{ form.area ? `區域 ${form.area}` : '-' }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="min-w-[76px] text-neutral-600">啟用狀態</span>
+                  <span class="text-neutral-900">{{ form.isActive ? '啟用中' : '停用' }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="min-w-[76px] text-neutral-600">合作狀態</span>
+                  <span class="text-neutral-900">{{ form.isCollaborate ? '合作中' : '暫停合作' }}</span>
+                </div>
+              </div>
+            </div>
 
-            <label class="flex items-center gap-2">
-              <input
-                v-model="form.isCollaborate"
-                type="checkbox"
-                class="
-                  rounded border-gray-300 text-blue-600
-                  focus:ring-blue-500
-                "
-              >
-              <span class="text-sm font-medium text-gray-700">合作商家</span>
-            </label>
-          </div>
-
-          <div class="sm:col-span-2">
-            <label
-              for="remarks"
-              class="block text-sm font-medium text-gray-700"
-            >備註</label>
-            <textarea
-              id="remarks"
-              v-model="form.remarks"
-              rows="3"
-              placeholder="商家備註資訊"
-              class="
-                mt-1 block w-full rounded-md border border-gray-300 px-3 py-2
-                shadow-sm
-                focus:border-blue-500 focus:ring-blue-500 focus:outline-none
-              "
-            ></textarea>
+            <!-- 經緯度 -->
+            <div class="flex flex-col gap-3">
+              <div class="h-px bg-neutral-200"></div>
+              <p class="text-base font-bold tracking-[0.8px] text-neutral-900">
+                經緯度
+              </p>
+              <div class="flex flex-col gap-2 text-base tracking-[0.8px]">
+                <div class="flex items-start gap-3">
+                  <span class="min-w-[76px] text-neutral-600">經度</span>
+                  <span class="text-neutral-900">{{ form.longitude || '-' }}</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <span class="min-w-[76px] text-neutral-600">緯度</span>
+                  <span class="text-neutral-900">{{ form.latitude || '-' }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="flex justify-end gap-3 border-t pt-6">
-          <NuxtLink
-            :to="`/merchants/${merchantId}`"
-            class="
-              rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
-              font-medium text-gray-700 shadow-sm
-              hover:bg-gray-50
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-          >
-            取消
-          </NuxtLink>
-          <button
-            type="submit"
-            :disabled="isSubmitting"
-            class="
-              rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm
-              font-medium text-white
-              hover:bg-blue-700
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-              disabled:opacity-50
-            "
-          >
-            {{ isSubmitting ? '更新中...' : '更新商家' }}
-          </button>
-        </div>
-      </form>
-    </div>
+        <!-- 儲存變更按鈕 -->
+        <button
+          type="submit"
+          class="
+            w-full rounded-sm bg-primary-400 py-2 text-base font-medium
+            tracking-[0.8px] text-white transition-colors
+            hover:bg-primary-500
+          "
+        >
+          儲存變更
+        </button>
+      </div>
+    </form>
   </div>
 </template>

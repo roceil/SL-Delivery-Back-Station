@@ -1,4 +1,13 @@
 <script setup lang="ts">
+/**
+ * 此頁面的訂單資料目前為完整假資料（`order` 物件），待串接掃描 QR Code → API 查詢訂單後替換。
+ *
+ * 【orders 資料表 — 待新增欄位】
+ * - payment_status  VARCHAR  付款狀態（'paid' | 'unpaid'），對應假資料 `order.paymentStatus`
+ * - service_plan    VARCHAR  服務方案（'round_trip' | 'one_way' | 'merchant'），對應 `order.servicePlan`
+ *
+ * 其餘欄位（status、category、luggageCount 等）應已存在於 orders 資料表中。
+ */
 import { AlertCircle, Minus, Plus, ReceiptText, RefreshCw, ScanLine, X } from 'lucide-vue-next'
 
 useHead({ title: '快速收件 - 行李運送系統' })

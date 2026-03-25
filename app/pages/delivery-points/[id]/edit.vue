@@ -1,6 +1,18 @@
 <script lang="ts" setup>
+import { ArrowLeft, MapPin, Route } from 'lucide-vue-next'
+
 useHead({
-  title: '編輯收件地 - 物流管理系統',
+  title: '編輯運送點 - 物流管理系統',
+})
+
+const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb()
+
+onMounted(() => {
+  setBreadcrumb({ label: '編輯運送點' })
+})
+
+onBeforeRouteLeave(() => {
+  clearBreadcrumb()
 })
 
 interface DeliveryPoint {
@@ -17,27 +29,30 @@ const route = useRoute()
 const router = useRouter()
 const id = route.params.id as string
 
-// 取得收件地資料
-const { data: deliveryPoint } = await useFetch<DeliveryPoint>(`/api/delivery-points/${id}`)
+const { data: deliveryPointData } = await useFetch<DeliveryPoint>(`/api/delivery-points/${id}`)
 
-if (!deliveryPoint.value) {
-  throw createError({
-    statusCode: 404,
-    message: '找不到此收件地',
-  })
+if (!deliveryPointData.value) {
+  throw createError({ statusCode: 404, message: '找不到此運送點' })
 }
 
+const deliveryPoint = deliveryPointData as Ref<DeliveryPoint>
+
+const { data: stationTypes } = await useFetch<{ id: number, name: string }[]>('/api/stations/types')
+
 const form = ref({
-  name: deliveryPoint.value.name,
+  name: deliveryPoint.value.name || '',
   type: deliveryPoint.value.type,
-  address: deliveryPoint.value.address,
+  address: deliveryPoint.value.address || '',
+  latitude: deliveryPoint.value.latitude?.toString() || '',
+  longitude: deliveryPoint.value.longitude?.toString() || '',
   area: deliveryPoint.value.area || '',
-  latitude: deliveryPoint.value.latitude || '',
-  longitude: deliveryPoint.value.longitude || '',
 })
 
-// 從 Supabase 取得地點類型
-const { data: stationTypes } = await useFetch('/api/stations/types')
+const hasData = computed(() => !!(form.value.name || form.value.address))
+
+const selectedTypeName = computed(() => {
+  return stationTypes.value?.find(t => t.id === form.value.type)?.name ?? ''
+})
 
 async function submitForm() {
   try {
@@ -48,191 +63,284 @@ async function submitForm() {
     router.push('/delivery-points')
   }
   catch (error) {
-    console.error('更新收件地失敗:', error)
-    alert('更新失敗，請稍後再試')
+    console.error('更新運送點失敗:', error)
   }
 }
 </script>
 
 <template>
-  <div class="rounded-lg bg-white shadow">
-    <div class="px-4 py-5 sm:p-6">
-      <h1 class="mb-6 text-2xl font-bold text-gray-900">
-        編輯收件地
-      </h1>
-
-      <form
-        class="space-y-6"
-        @submit.prevent="submitForm"
+  <div class="flex min-h-full flex-col gap-4 bg-neutral-100 p-8">
+    <!-- 頁面標題 -->
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="
+          flex items-center justify-center rounded-full p-2
+          hover:bg-neutral-200
+        "
+        @click="router.push('/delivery-points')"
       >
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <label
-              for="name"
-              class="block text-sm font-medium text-gray-700"
-            >收件地名稱</label>
+        <ArrowLeft class="size-4 text-neutral-900" />
+      </button>
+      <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+        編輯運送點
+      </h4>
+    </div>
+
+    <!-- 主要內容 -->
+    <form
+      class="grid grid-cols-12 items-start gap-4"
+      @submit.prevent="submitForm"
+    >
+      <!-- 左欄：運送點資訊 -->
+      <div
+        class="
+          col-span-8 flex flex-1 flex-col gap-4 rounded-md bg-white p-6
+          shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <div class="flex items-center gap-2">
+          <Route class="size-5 text-neutral-600" />
+          <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+            運送點資訊
+          </h2>
+        </div>
+
+        <div class="flex flex-col gap-4">
+          <!-- 運送點名稱 -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">
+              運送點名稱
+            </label>
             <input
-              id="name"
               v-model="form.name"
               type="text"
               required
+              placeholder="請輸入 Google 地圖上的全銜"
               class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
+                rounded-xs border border-neutral-200 px-3 py-2 text-base
+                tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-400
+                focus:border-neutral-400
               "
-              placeholder="例：碼頭門市"
             >
           </div>
 
-          <div>
-            <label
-              for="type"
-              class="block text-sm font-medium text-gray-700"
-            >地點類型</label>
-            <select
-              id="type"
-              v-model="form.type"
-              required
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-              "
-            >
-              <option
-                v-for="stationType in stationTypes"
-                :key="stationType.id"
-                :value="stationType.id"
+          <!-- 運送點類型 -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">
+              運送點類型
+            </label>
+            <Select v-model="form.type">
+              <SelectTrigger
+                class="rounded-xs border-neutral-200 bg-white text-neutral-900"
               >
-                {{ stationType.name }}
-              </option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label
-            for="address"
-            class="block text-sm font-medium text-gray-700"
-          >完整地址</label>
-          <textarea
-            id="address"
-            v-model="form.address"
-            rows="3"
-            required
-            class="
-              mt-1 block w-full rounded-md border-gray-300 shadow-sm
-              focus:border-blue-500 focus:ring-blue-500
-            "
-            placeholder="請輸入完整的地址"
-          ></textarea>
-        </div>
-
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
-          <div>
-            <label
-              for="area"
-              class="block text-sm font-medium text-gray-700"
-            >區域</label>
-            <input
-              id="area"
-              v-model="form.area"
-              type="text"
-              class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
-              "
-              placeholder="例：A、B、C"
-            >
-            <p class="mt-1 text-sm text-gray-500">
-              配送區域代碼（選填）
-            </p>
+                <SelectValue placeholder="請選擇類型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem
+                    v-for="t in stationTypes"
+                    :key="t.id"
+                    :value="t.id"
+                  >
+                    {{ t.name }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div>
-            <label
-              for="latitude"
-              class="block text-sm font-medium text-gray-700"
-            >緯度</label>
+          <!-- 地址 -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">
+              地址
+            </label>
             <input
-              id="latitude"
-              v-model="form.latitude"
+              v-model="form.address"
               type="text"
+              required
+              placeholder="屏東縣琉球鄉仁愛路52之7號"
               class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
+                rounded-xs border border-neutral-200 px-3 py-2 text-base
+                tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-400
+                focus:border-neutral-400
               "
-              placeholder="22.4645"
             >
           </div>
 
-          <div>
-            <label
-              for="longitude"
-              class="block text-sm font-medium text-gray-700"
-            >經度</label>
+          <!-- 經度 -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">
+              經度
+            </label>
             <input
-              id="longitude"
               v-model="form.longitude"
               type="text"
+              placeholder="120.3743899"
               class="
-                mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                focus:border-blue-500 focus:ring-blue-500
+                rounded-xs border border-neutral-200 px-3 py-2 text-base
+                tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-400
+                focus:border-neutral-400
               "
-              placeholder="120.4517"
+            >
+          </div>
+
+          <!-- 緯度 -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">
+              緯度
+            </label>
+            <input
+              v-model="form.latitude"
+              type="text"
+              placeholder="22.3372317"
+              class="
+                rounded-xs border border-neutral-200 px-3 py-2 text-base
+                tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-400
+                focus:border-neutral-400
+              "
+            >
+          </div>
+
+          <!-- 區域（選填） -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">
+              區域
+              <span
+                class="text-xs font-normal tracking-[0.6px] text-neutral-400"
+              >（選填）</span>
+            </label>
+            <input
+              v-model="form.area"
+              type="text"
+              placeholder="區域 D"
+              class="
+                rounded-xs border border-neutral-200 px-3 py-2 text-base
+                tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-400
+                focus:border-neutral-400
+              "
             >
           </div>
         </div>
+      </div>
 
-        <!-- 預覽區域 -->
-        <div class="border-t pt-6">
-          <h3 class="mb-4 text-lg font-medium text-gray-900">
-            預覽
-          </h3>
-          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div class="space-y-2 text-sm text-gray-600">
-              <div class="text-base font-medium text-gray-900">
-                {{ form.name || '未填寫名稱' }}
-              </div>
-              <div v-if="form.address">
-                📍 {{ form.address }}
-              </div>
-              <div v-if="form.area">
-                🗺️ 區域：{{ form.area }}
-              </div>
-              <div v-if="form.latitude && form.longitude">
-                🧭 座標：{{ form.latitude }}, {{ form.longitude }}
+      <!-- 右欄：運送點摘要 -->
+      <div
+        class="
+          sticky top-8 col-span-4 shrink-0 rounded-md bg-white p-6
+          shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <div class="mb-4 flex items-center gap-2">
+          <MapPin class="size-5 text-neutral-600" />
+          <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+            運送點摘要
+          </h2>
+        </div>
+
+        <!-- 預覽卡片 -->
+        <div class="mb-4 rounded-sm border border-neutral-200 bg-white p-4">
+          <template v-if="hasData">
+            <div class="w-full space-y-2">
+              <p class="text-lg font-bold tracking-[0.9px] text-primary-400">
+                {{ form.name || '-' }}
+              </p>
+              <div class="h-px bg-neutral-200"></div>
+              <div class="flex flex-col gap-2 text-base tracking-[0.8px]">
+                <div
+                  v-if="form.address"
+                  class="flex gap-3"
+                >
+                  <span class="min-w-[76px] text-neutral-600">地址</span>
+                  <span class="text-neutral-900">{{ form.address }}</span>
+                </div>
+                <div class="flex gap-3">
+                  <span class="min-w-[76px] text-neutral-600">類型</span>
+                  <span class="text-neutral-900">{{ selectedTypeName || '-' }}</span>
+                </div>
+                <div
+                  v-if="form.longitude"
+                  class="flex gap-3"
+                >
+                  <span class="min-w-[76px] text-neutral-600">經度</span>
+                  <span class="text-neutral-900">{{ form.longitude }}</span>
+                </div>
+                <div
+                  v-if="form.latitude"
+                  class="flex gap-3"
+                >
+                  <span class="min-w-[76px] text-neutral-600">緯度</span>
+                  <span class="text-neutral-900">{{ form.latitude }}</span>
+                </div>
+                <div
+                  v-if="form.area"
+                  class="flex gap-3"
+                >
+                  <span class="min-w-[76px] text-neutral-600">區域</span>
+                  <span class="text-neutral-900">{{ form.area }}</span>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
+
+          <template v-else>
+            <div class="flex flex-col items-center gap-2 py-4">
+              <svg
+                class="size-[80px] text-neutral-300"
+                fill="none"
+                viewBox="0 0 120 120"
+                stroke="currentColor"
+              >
+                <rect
+                  x="20"
+                  y="35"
+                  width="80"
+                  height="60"
+                  rx="8"
+                  stroke-width="4"
+                />
+                <path
+                  d="M40 35V28a20 20 0 0 1 40 0v7"
+                  stroke-width="4"
+                />
+                <circle
+                  cx="60"
+                  cy="65"
+                  r="8"
+                  stroke-width="4"
+                />
+                <line
+                  x1="60"
+                  y1="73"
+                  x2="60"
+                  y2="82"
+                  stroke-width="4"
+                />
+              </svg>
+              <p class="text-base tracking-[0.8px] text-neutral-600">
+                尚未填寫資料
+              </p>
+            </div>
+          </template>
         </div>
 
-        <div class="flex justify-end space-x-4 border-t pt-6">
-          <NuxtLink
-            to="/delivery-points"
-            class="
-              rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
-              font-medium text-gray-700
-              hover:bg-gray-50
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-          >
-            取消
-          </NuxtLink>
-          <button
-            type="submit"
-            class="
-              rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm
-              font-medium text-white
-              hover:bg-blue-700
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              focus:outline-none
-            "
-          >
-            儲存變更
-          </button>
-        </div>
-      </form>
-    </div>
+        <!-- 儲存變更按鈕 -->
+        <button
+          type="submit"
+          class="
+            w-full rounded-sm bg-primary-400 py-2 text-base font-medium
+            tracking-[0.8px] text-white transition-colors
+            hover:bg-primary-500
+          "
+        >
+          儲存變更
+        </button>
+      </div>
+    </form>
   </div>
 </template>

@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
       status: body.status || 1, // 預設為雇用中
       is_available: body.isAvailable !== undefined ? body.isAvailable : true,
       hire_date: body.hireDate || null,
+      courier_type: body.courierType || null,
     })
     .select()
     .single()

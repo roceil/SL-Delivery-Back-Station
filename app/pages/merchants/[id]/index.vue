@@ -1,4 +1,7 @@
 <script lang="ts" setup>
+import { ArrowLeft, Clock, Mail, MapPin, Pencil, Phone, Settings2, Tag, UserRound, Zap } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
+
 interface Merchant {
   id: number
   name: string
@@ -13,27 +16,62 @@ interface Merchant {
   isCollaborate: boolean
   voucherId: string
   usedCounts: number
-  maxUsageCounts: number
+  maxUsageCounts: number | null
   remarks: string
   createdAt: string
   updatedAt: string
+  latitude?: number | null
+  longitude?: number | null
 }
 
 const route = useRoute()
+const router = useRouter()
 const merchantId = route.params.id as string
 
 useHead({
-  title: `商家詳細 - 行李運送系統`,
+  title: '商家詳細 - 物流管理系統',
 })
 
-const { data: merchant, error } = await useFetch<Merchant>(`/api/merchants/${merchantId}`)
+const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb()
 
-if (error.value) {
-  throw createError({
-    statusCode: 404,
-    message: '找不到此商家',
-  })
+const { data: merchantData, error } = await useFetch<Merchant>(`/api/merchants/${merchantId}`)
+
+if (error.value || !merchantData.value) {
+  throw createError({ statusCode: 404, message: '找不到此商家' })
 }
+
+const merchant = merchantData as Ref<Merchant>
+
+onMounted(() => {
+  setBreadcrumb({ label: merchant.value.name })
+})
+
+onBeforeRouteLeave(() => {
+  clearBreadcrumb()
+})
+
+const remainingVouchers = computed(() => {
+  const max = merchant.value.maxUsageCounts ?? 0
+  const used = merchant.value.usedCounts ?? 0
+  return Math.max(0, max - used)
+})
+
+const usagePercentage = computed(() => {
+  if (!merchant.value.maxUsageCounts)
+    return 0
+  return Math.round((merchant.value.usedCounts / merchant.value.maxUsageCounts) * 100)
+})
+
+const usageStatus = computed(() => {
+  const pct = usagePercentage.value
+  if (pct >= 90)
+    return { text: '即將額滿', color: 'text-danger-300' }
+  if (pct >= 70)
+    return { text: '使用偏高', color: 'text-warning-300' }
+  if (pct >= 50)
+    return { text: '使用正常', color: 'text-info-300' }
+  return { text: '餘額充裕', color: 'text-success-300' }
+})
 
 function formatDate(dateString: string) {
   if (!dateString)
@@ -44,408 +82,362 @@ function formatDate(dateString: string) {
 function getPartnershipDuration(startDate: string) {
   if (!startDate)
     return '-'
-
   const start = new Date(startDate)
   const now = new Date()
-  const diffTime = Math.abs(now.getTime() - start.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const diffDays = Math.ceil(Math.abs(now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
   const months = Math.floor(diffDays / 30)
   const days = diffDays % 30
-
   if (months > 0)
     return `${months} 個月 ${days} 天`
-
   return `${days} 天`
 }
 
-// 計算剩餘票券數量
-const remainingVouchers = computed(() => {
-  if (!merchant.value)
-    return 0
-  const max = merchant.value.maxUsageCounts || 0
-  const used = merchant.value.usedCounts || 0
-  return Math.max(0, max - used)
-})
+// 類型 Badge 對應
+interface BadgeInfo { type: 'gray' | 'blue' | 'green' | 'orange', label: string }
 
-// 票券使用率
-const usagePercentage = computed(() => {
-  if (!merchant.value || !merchant.value.maxUsageCounts)
-    return 0
-  return Math.round((merchant.value.usedCounts / merchant.value.maxUsageCounts) * 100)
-})
+const typeBadgeMap: Record<string, BadgeInfo> = {
+  民宿: { type: 'green', label: '民宿' },
+  潛水店: { type: 'blue', label: '潛水店' },
+  餐廳: { type: 'orange', label: '餐廳' },
+  碼頭: { type: 'gray', label: '碼頭' },
+}
 
-function getUsageStatus(used: number, max: number) {
-  if (!max)
-    return { text: '未設定', color: 'text-gray-600' }
+function getTypeBadge(typeName: string): BadgeInfo {
+  return typeBadgeMap[typeName] ?? { type: 'gray', label: typeName || '-' }
+}
 
-  const remaining = max - used
-  const percentage = (used / max) * 100
-
-  if (percentage >= 90)
-    return { text: '即將額滿', color: 'text-red-600' }
-  if (percentage >= 70)
-    return { text: '使用偏高', color: 'text-orange-600' }
-  if (percentage >= 50)
-    return { text: '使用正常', color: 'text-blue-600' }
-
-  return { text: '使用充裕', color: 'text-green-600' }
+function openGoogleMaps(address: string) {
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank', 'noopener,noreferrer')
 }
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="flex min-h-full flex-col gap-4 bg-neutral-100 p-8">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <NuxtLink
-          to="/merchants"
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
           class="
-            rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
-            font-medium text-gray-700 shadow-sm
-            hover:bg-gray-50
-            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            focus:outline-none
+            flex items-center justify-center rounded-full p-2
+            hover:bg-neutral-200
           "
+          @click="router.push('/merchants')"
         >
-          ← 返回列表
-        </NuxtLink>
-        <div class="flex items-center gap-3">
-          <span class="text-3xl">🏪</span>
-          <h1 class="text-2xl font-bold text-gray-900">
-            {{ merchant?.name }}
-          </h1>
+          <ArrowLeft class="size-4 text-neutral-900" />
+        </button>
+        <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+          {{ merchant.name }}
+        </h4>
+        <div class="flex items-center gap-1.5">
+          <Badge
+            :type="getTypeBadge(merchant.typeName).type"
+            :label="getTypeBadge(merchant.typeName).label"
+            size="sm"
+          />
+          <Badge
+            :type="merchant.isActive ? 'green' : 'gray'"
+            :label="merchant.isActive ? '啟用中' : '已停用'"
+            size="sm"
+          />
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <NuxtLink
-          :to="`/merchants/${merchantId}/edit`"
-          class="
-            rounded-md border border-gray-300 bg-white px-4 py-2 text-sm
-            font-medium text-gray-700 shadow-sm
-            hover:bg-gray-50
-            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            focus:outline-none
-          "
-        >
-          ✏️ 編輯
-        </NuxtLink>
-        <span
-          v-if="merchant?.typeName"
-          class="
-            inline-flex rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold
-            text-blue-800
-          "
-        >
-          {{ merchant.typeName }}
-        </span>
-        <span
-          v-if="merchant"
-          :class="merchant.isActive ? 'bg-green-100 text-green-800' : `
-            bg-gray-100 text-gray-800
-          `"
-          class="inline-flex rounded-full px-4 py-2 text-sm font-semibold"
-        >
-          {{ merchant.isActive ? '啟用中' : '已停用' }}
-        </span>
-      </div>
+
+      <!-- 編輯按鈕 -->
+      <button
+        type="button"
+        class="
+          flex cursor-pointer items-center gap-2 rounded-sm border
+          border-neutral-200 bg-white px-4 py-2 text-base font-medium
+          tracking-[0.8px] text-neutral-900 transition-colors
+          hover:bg-neutral-50
+        "
+        @click="router.push(`/merchants/${merchantId}/edit`)"
+      >
+        <Pencil class="size-4" />
+        編輯
+      </button>
     </div>
 
-    <!-- Main Content -->
-    <div class="grid gap-6 lg:grid-cols-3">
-      <!-- Left Column - Main Info -->
-      <div class="space-y-6 lg:col-span-2">
-        <!-- Basic Information -->
-        <div class="rounded-lg bg-white p-6 shadow">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">
-            基本資訊
-          </h2>
-          <dl class="space-y-4">
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                商家名稱
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                {{ merchant?.name || '-' }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                聯絡人
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                {{ merchant?.contactPerson || '-' }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                聯絡電話
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                <a
-                  v-if="merchant?.phone"
-                  :href="`tel:${merchant.phone}`"
-                  class="text-blue-600 hover:text-blue-800"
-                >
-                  {{ merchant.phone }}
-                </a>
-                <span v-else>-</span>
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                Email
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                <a
-                  v-if="merchant?.email"
-                  :href="`mailto:${merchant.email}`"
-                  class="text-blue-600 hover:text-blue-800"
-                >
-                  {{ merchant.email }}
-                </a>
-                <span v-else>-</span>
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                地址
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                {{ merchant?.address || '-' }}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <!-- Voucher Information -->
-        <div class="rounded-lg bg-white p-6 shadow">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">
-            票券資訊
-          </h2>
-          <dl class="space-y-4">
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                票券 ID
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                {{ merchant?.voucherId || '-' }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                已使用次數
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                {{ merchant?.usedCounts || 0 }} 次
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm font-medium text-gray-500">
-                最大使用次數
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900">
-                {{ merchant?.maxUsageCounts || '-' }} 次
-              </dd>
-            </div>
-            <div v-if="merchant?.maxUsageCounts">
-              <dt class="text-sm font-medium text-gray-500">
-                剩餘次數
-              </dt>
-              <dd class="mt-1 flex items-center justify-between">
-                <span class="text-lg font-bold text-gray-900">
-                  {{ remainingVouchers }} 次
-                </span>
-                <span
-                  :class="getUsageStatus(merchant.usedCounts, merchant.maxUsageCounts).color"
-                  class="text-sm font-medium"
-                >
-                  {{ getUsageStatus(merchant.usedCounts, merchant.maxUsageCounts).text }}
-                </span>
-              </dd>
-              <div class="mt-2">
-                <div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                  <div
-                    :style="{ width: `${usagePercentage}%` }"
-                    :class="[
-                      usagePercentage >= 90
-                        ? 'bg-red-500'
-                        : usagePercentage >= 70
-                          ? 'bg-orange-500'
-                          : usagePercentage >= 50
-                            ? 'bg-blue-500'
-                            : 'bg-green-500',
-                    ]"
-                    class="h-full transition-all"
-                  ></div>
-                </div>
-                <p class="mt-1 text-xs text-gray-500">
-                  已使用 {{ usagePercentage }}%
-                </p>
-              </div>
-            </div>
-          </dl>
-        </div>
-
-        <!-- Remarks -->
+    <!-- 主要內容 -->
+    <div class="grid grid-cols-12 items-start gap-4">
+      <!-- 左欄 -->
+      <div class="col-span-8 flex flex-col gap-4">
+        <!-- 商家資訊 -->
         <div
-          v-if="merchant?.remarks"
-          class="rounded-lg bg-white p-6 shadow"
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
         >
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">
-            備註
-          </h2>
-          <p class="text-sm whitespace-pre-wrap text-gray-700">
-            {{ merchant.remarks }}
-          </p>
-        </div>
-      </div>
+          <div class="mb-4 flex items-center gap-2">
+            <UserRound class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              商家資訊
+            </h2>
+          </div>
 
-      <!-- Right Column - Additional Info -->
-      <div class="space-y-6">
-        <!-- Status Card -->
-        <div class="rounded-lg bg-white p-6 shadow">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">
-            狀態資訊
-          </h2>
-          <dl class="space-y-3">
-            <div class="flex items-center justify-between">
-              <dt class="text-sm text-gray-500">
-                啟用狀態
-              </dt>
-              <dd>
-                <span
-                  :class="
-                    merchant?.isActive
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  "
-                  class="
-                    inline-flex rounded-full px-2.5 py-1 text-xs font-semibold
-                  "
-                >
-                  {{ merchant?.isActive ? '啟用中' : '已停用' }}
-                </span>
-              </dd>
+          <div class="flex flex-col gap-3 text-base tracking-[0.8px]">
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">商家名稱</span>
+              <span class="text-neutral-900">{{ merchant.name || '-' }}</span>
             </div>
-            <div class="flex items-center justify-between">
-              <dt class="text-sm text-gray-500">
-                合作狀態
-              </dt>
-              <dd>
-                <span
-                  :class="
-                    merchant?.isCollaborate
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  "
-                  class="
-                    inline-flex rounded-full px-2.5 py-1 text-xs font-semibold
-                  "
-                >
-                  {{ merchant?.isCollaborate ? '合作中' : '未合作' }}
-                </span>
-              </dd>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">聯絡人</span>
+              <span class="text-neutral-900">{{ merchant.contactPerson || '-' }}</span>
             </div>
-            <div class="flex items-center justify-between">
-              <dt class="text-sm text-gray-500">
-                商家類型
-              </dt>
-              <dd class="text-sm font-medium text-gray-900">
-                {{ merchant?.typeName || '-' }}
-              </dd>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">聯絡電話</span>
+              <a
+                v-if="merchant.phone"
+                :href="`tel:${merchant.phone}`"
+                class="text-primary-400 hover:text-primary-500"
+              >{{ merchant.phone }}</a>
+              <span
+                v-else
+                class="text-neutral-900"
+              >-</span>
             </div>
-            <div class="flex items-center justify-between">
-              <dt class="text-sm text-gray-500">
-                商家區域
-              </dt>
-              <dd class="text-sm font-medium text-gray-900">
-                區域 {{ merchant?.area || '-' }}
-              </dd>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">Email</span>
+              <a
+                v-if="merchant.email"
+                :href="`mailto:${merchant.email}`"
+                class="break-all text-primary-400 hover:text-primary-500"
+              >{{ merchant.email }}</a>
+              <span
+                v-else
+                class="text-neutral-900"
+              >-</span>
             </div>
-          </dl>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="rounded-lg bg-white p-6 shadow">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">
-            快速操作
-          </h2>
-          <div class="space-y-3">
-            <a
-              v-if="merchant?.phone"
-              :href="`tel:${merchant.phone}`"
-              class="
-                block w-full rounded-md border border-gray-300 bg-white px-4
-                py-2 text-center text-sm font-medium text-gray-700
-                hover:bg-gray-50
-                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                focus:outline-none
-              "
-            >
-              📞 撥打電話
-            </a>
-            <a
-              v-if="merchant?.email"
-              :href="`mailto:${merchant.email}`"
-              class="
-                block w-full rounded-md border border-gray-300 bg-white px-4
-                py-2 text-center text-sm font-medium text-gray-700
-                hover:bg-gray-50
-                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                focus:outline-none
-              "
-            >
-              ✉️ 寄送郵件
-            </a>
-            <a
-              v-if="merchant?.address"
-              :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(merchant.address)}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="
-                block w-full rounded-md border border-gray-300 bg-white px-4
-                py-2 text-center text-sm font-medium text-gray-700
-                hover:bg-gray-50
-                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                focus:outline-none
-              "
-            >
-              🗺️ 開啟地圖
-            </a>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">地址</span>
+              <span class="text-neutral-900">{{ merchant.address || '-' }}</span>
+            </div>
           </div>
         </div>
 
-        <!-- Partnership Info -->
-        <div class="rounded-lg bg-white p-6 shadow">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">
-            系統資訊
+        <!-- 票券資訊 -->
+        <div
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <Tag class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              票券資訊
+            </h2>
+          </div>
+
+          <div class="flex flex-col gap-3 text-base tracking-[0.8px]">
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">票券 ID</span>
+              <span class="font-mono text-neutral-900">{{ merchant.voucherId || '-' }}</span>
+            </div>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">已使用次數</span>
+              <span class="text-neutral-900">{{ merchant.usedCounts ?? 0 }} 次</span>
+            </div>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">可用次數</span>
+              <span class="text-neutral-900">{{ merchant.maxUsageCounts ?? '-' }} 次</span>
+            </div>
+            <div
+              v-if="merchant.maxUsageCounts"
+              class="flex items-center gap-4"
+            >
+              <span class="min-w-[100px] text-neutral-600">剩餘次數</span>
+              <span
+                class="
+                  bg-gradient-to-r from-[#4090E8] to-[#306CF7] bg-clip-text
+                  text-lg font-bold text-transparent
+                "
+              >{{ remainingVouchers }} 次</span>
+            </div>
+          </div>
+
+          <!-- 進度條 -->
+          <div
+            v-if="merchant.maxUsageCounts"
+            class="mt-4"
+          >
+            <div
+              class="
+                mb-1.5 flex items-center justify-between text-sm
+                tracking-[0.7px]
+              "
+            >
+              <span :class="usageStatus.color">{{ usageStatus.text }}</span>
+              <span class="text-neutral-600">已使用 {{ usagePercentage }}%</span>
+            </div>
+            <div class="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
+              <div
+                class="h-full rounded-full bg-success-300 transition-all"
+                :style="{ width: `${usagePercentage}%` }"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 營運設定 -->
+        <div
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <Settings2 class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              營運設定
+            </h2>
+          </div>
+
+          <div class="flex flex-col gap-3 text-base tracking-[0.8px]">
+            <div class="flex items-center gap-4">
+              <span class="min-w-[100px] text-neutral-600">啟用狀態</span>
+              <Badge
+                :type="merchant.isActive ? 'green' : 'gray'"
+                :label="merchant.isActive ? '啟用中' : '已停用'"
+                size="lg"
+              />
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="min-w-[100px] text-neutral-600">合作狀態</span>
+              <Badge
+                :type="merchant.isCollaborate ? 'green' : 'gray'"
+                :label="merchant.isCollaborate ? '合作中' : '暫停合作'"
+                size="lg"
+              />
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="min-w-[100px] text-neutral-600">商家類型</span>
+              <span class="text-neutral-900">{{ merchant.typeName || '-' }}</span>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="min-w-[100px] text-neutral-600">商家區域</span>
+              <span class="text-neutral-900">{{ merchant.area ? `區域 ${merchant.area}` : '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 經緯度 -->
+        <div
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <MapPin class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              經緯度
+            </h2>
+          </div>
+
+          <div class="flex flex-col gap-3 text-base tracking-[0.8px]">
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">經度</span>
+              <span class="text-neutral-900">{{ merchant.longitude ?? '-' }}</span>
+            </div>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">緯度</span>
+              <span class="text-neutral-900">{{ merchant.latitude ?? '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 系統紀錄 -->
+        <div
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <Clock class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              系統紀錄
+            </h2>
+          </div>
+
+          <div class="flex flex-col gap-3 text-base tracking-[0.8px]">
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">建立日期</span>
+              <span class="text-neutral-900">{{ formatDate(merchant.createdAt) }}</span>
+            </div>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">合作時長</span>
+              <span class="text-neutral-900">{{ getPartnershipDuration(merchant.createdAt) }}</span>
+            </div>
+            <div class="flex items-start gap-4">
+              <span class="min-w-[100px] text-neutral-600">最後更新</span>
+              <span class="text-neutral-900">{{ formatDate(merchant.updatedAt) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右欄：快速操作 -->
+      <div
+        class="
+          sticky top-8 col-span-4 rounded-md border border-primary-200 bg-white
+          p-6 shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <div class="mb-4 flex items-center gap-2">
+          <Zap class="size-5 text-neutral-600" />
+          <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+            快速操作
           </h2>
-          <dl class="space-y-4">
-            <div>
-              <dt class="text-sm text-gray-500">
-                建立日期
-              </dt>
-              <dd class="mt-1 text-sm font-medium text-gray-900">
-                {{ formatDate(merchant?.createdAt || '') }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm text-gray-500">
-                合作時長
-              </dt>
-              <dd class="mt-1 text-sm font-medium text-gray-900">
-                {{ getPartnershipDuration(merchant?.createdAt || '') }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm text-gray-500">
-                最後更新
-              </dt>
-              <dd class="mt-1 text-sm font-medium text-gray-900">
-                {{ formatDate(merchant?.updatedAt || '') }}
-              </dd>
-            </div>
-          </dl>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <a
+            :href="merchant.phone ? `tel:${merchant.phone}` : undefined"
+            :class="merchant.phone ? 'cursor-pointer hover:bg-neutral-50' : `
+              cursor-not-allowed opacity-40
+            `"
+            class="
+              flex items-center gap-3 rounded-sm border border-neutral-200
+              bg-white px-4 py-3 text-base font-medium tracking-[0.8px]
+              text-neutral-900 transition-colors
+            "
+          >
+            <Phone class="size-4 text-neutral-600" />
+            聯絡商家
+          </a>
+          <a
+            :href="merchant.email ? `mailto:${merchant.email}` : undefined"
+            :class="merchant.email ? 'cursor-pointer hover:bg-neutral-50' : `
+              cursor-not-allowed opacity-40
+            `"
+            class="
+              flex items-center gap-3 rounded-sm border border-neutral-200
+              bg-white px-4 py-3 text-base font-medium tracking-[0.8px]
+              text-neutral-900 transition-colors
+            "
+          >
+            <Mail class="size-4 text-neutral-600" />
+            寄送郵件
+          </a>
+          <button
+            type="button"
+            :disabled="!merchant.address"
+            class="
+              flex items-center gap-3 rounded-sm border border-neutral-200
+              bg-white px-4 py-3 text-base font-medium tracking-[0.8px]
+              text-neutral-900 transition-colors
+              hover:bg-neutral-50
+              disabled:cursor-not-allowed disabled:opacity-40
+            "
+            @click="merchant.address && openGoogleMaps(merchant.address)"
+          >
+            <MapPin class="size-4 text-neutral-600" />
+            開啟地圖
+          </button>
         </div>
       </div>
     </div>
