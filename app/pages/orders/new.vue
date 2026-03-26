@@ -435,7 +435,10 @@ async function submitForm() {
               shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
             "
           >
-            <div class="mb-4 flex items-center justify-between">
+            <div
+              class="flex items-center justify-between"
+              :class="hasAddons ? 'mb-4' : 'mb-0'"
+            >
               <div class="flex items-center gap-2">
                 <Sparkle class="size-5 text-neutral-600" />
                 <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
@@ -1667,7 +1670,10 @@ async function submitForm() {
                         rounded-sm border border-neutral-200 bg-neutral-50 p-4
                       "
                     >
-                      <div class="flex items-center justify-between">
+                      <div
+                        class="flex items-center justify-between"
+                        :class="showAddons[di] ? 'mb-4' : ''"
+                      >
                         <p class="text-base font-bold text-neutral-900">
                           加值服務
                         </p>
@@ -1699,6 +1705,7 @@ async function submitForm() {
                           ></span>
                         </button>
                       </div>
+
                       <template v-if="showAddons[di]">
                         <div class="grid grid-cols-2 gap-4">
                           <!-- 大型行李箱 -->
@@ -1926,8 +1933,8 @@ async function submitForm() {
                                   type="text"
                                   placeholder="物件名稱"
                                   class="
-                                    rounded-xs border border-neutral-200 px-3
-                                    py-2 text-sm outline-none
+                                    w-full rounded-xs border border-neutral-200
+                                    px-3 py-2 text-sm outline-none
                                     focus:border-primary-300
                                   "
                                 >
@@ -1936,8 +1943,8 @@ async function submitForm() {
                                   type="number"
                                   min="0"
                                   class="
-                                    rounded-xs border border-neutral-200 px-3
-                                    py-2 text-sm outline-none
+                                    w-full rounded-xs border border-neutral-200
+                                    px-3 py-2 text-sm outline-none
                                     focus:border-primary-300
                                   "
                                 >

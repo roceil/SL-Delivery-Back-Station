@@ -33,6 +33,7 @@ import {
   Calendar,
   Check,
   ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   ClipboardList,
   Copy,
@@ -41,6 +42,9 @@ import {
   Package,
   Pencil,
   Phone,
+  Store,
+  Ticket,
+  Truck,
   User,
   X,
 } from 'lucide-vue-next'
@@ -296,6 +300,38 @@ function formatTime(timeString?: string | null) {
 function formatCurrency(amount: number) {
   return `NT$ ${amount.toLocaleString()}`
 }
+
+// 訂單類型切換（開發用）
+const isReseller = ref(true)
+
+// 修改紀錄彈窗
+const showHistoryModal = ref(false)
+const selectedHistoryIndex = ref(0)
+
+interface HistoryChange {
+  field: string
+  from: string
+  to: string
+}
+
+interface HistoryItem {
+  id: number
+  datetime: string
+  changes: HistoryChange[]
+}
+
+const historyItems: HistoryItem[] = [
+  {
+    id: 1,
+    datetime: '2026/1/10 · 4:27 AM',
+    changes: [{ field: '行李件數', from: '2 件', to: '3 件' }],
+  },
+  {
+    id: 2,
+    datetime: '2026/1/11 · 4:30 AM',
+    changes: [{ field: '備註', from: '無', to: '內有易碎物品，運送時請小心。' }],
+  },
+]
 </script>
 
 <template>
@@ -345,35 +381,111 @@ function formatCurrency(amount: number) {
         >
           <Copy class="size-4" />
         </button>
-        <UiBadge
+        <Badge
           :type="getStatusBadgeType(order.status)"
           :label="getStatusText(order.status)"
           size="lg"
         />
         <!-- TODO: 等 API 支援後改為動態資料 -->
-        <UiBadge
+        <Badge
           type="sky"
           label="待交付"
           size="lg"
         />
-        <UiBadge
+        <Badge
           type="gray"
           label="已付款"
           size="lg"
         />
-        <UiBadge
+        <Badge
           type="amber"
           label="認領未分配"
           size="lg"
         />
+
+        <!-- DEV: 訂單類型切換 -->
+        <button
+          type="button"
+          class="
+            cursor-pointer rounded border border-neutral-300 px-2 py-1 text-xs
+            text-neutral-500
+            hover:bg-neutral-100
+          "
+          @click="isReseller = !isReseller"
+        >
+          {{ isReseller ? '商家代售' : '一般訂單' }}
+        </button>
       </div>
 
       <!-- Two-column layout -->
       <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
         <!-- Main Content -->
         <div class="flex flex-col gap-4">
-          <!-- 旅客資訊 -->
-          <div class="rounded-md border border-neutral-200 bg-neutral-0 p-6">
+          <!-- 商家代售資訊 -->
+          <div
+            v-if="isReseller"
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <Store class="size-5 text-neutral-900" />
+              <h2
+                class="text-base font-semibold tracking-wider text-neutral-900"
+              >
+                商家代售
+              </h2>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-sm tracking-wider
+                    text-neutral-500
+                  "
+                >
+                  類別
+                </dt>
+                <dd>
+                  <Badge
+                    type="green"
+                    label="代售"
+                    size="sm"
+                  />
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-sm tracking-wider
+                    text-neutral-500
+                  "
+                >
+                  商家
+                </dt>
+                <dd class="text-sm tracking-wider text-neutral-900">
+                  小琉球樂嶼海景民宿
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-sm tracking-wider
+                    text-neutral-500
+                  "
+                >
+                  運送日期
+                </dt>
+                <dd class="text-sm tracking-wider text-neutral-900">
+                  {{ formatDate(order.deliveryDate) }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 旅客資訊（一般訂單） -->
+          <div
+            v-if="!isReseller"
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
             <div class="mb-4 flex items-center gap-2">
               <User class="size-5 text-neutral-900" />
               <h2
@@ -387,7 +499,7 @@ function formatCurrency(amount: number) {
                 類別
               </dt>
               <dd>
-                <UiBadge
+                <Badge
                   :type="getCategoryBadgeType(order.category)"
                   :label="order.category"
                   size="sm"
@@ -408,8 +520,218 @@ function formatCurrency(amount: number) {
             </dl>
           </div>
 
-          <!-- 寄件日期 -->
-          <div class="rounded-md border border-neutral-200 bg-neutral-0 p-6">
+          <!-- 旅客資訊（商家代售 - 多位旅客） -->
+          <div
+            v-else
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <User class="size-5 text-neutral-900" />
+              <h2
+                class="
+                  flex-1 text-base font-semibold tracking-wider text-neutral-900
+                "
+              >
+                旅客資訊
+              </h2>
+              <span class="text-sm tracking-wider text-neutral-500">
+                3 位旅客 · 4 件行李
+              </span>
+            </div>
+            <div class="flex flex-col gap-3">
+              <!-- 旅客 1 -->
+              <div class="flex items-center gap-3">
+                <span
+                  class="
+                    flex size-7 shrink-0 items-center justify-center
+                    rounded-full bg-neutral-200 text-xs font-medium
+                    tracking-wider text-neutral-600
+                  "
+                >1</span>
+                <div class="flex-1 rounded-xl bg-neutral-100 p-4">
+                  <p
+                    class="
+                      mb-2 text-lg font-bold tracking-wider text-neutral-900
+                    "
+                  >
+                    王阿伯
+                  </p>
+                  <dl class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        行李件數
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        1 件
+                      </dd>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        聯絡電話
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        0912345678
+                      </dd>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        加值服務
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        大型行李 <span class="text-sm text-neutral-400">·</span> 1 件
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+
+              <!-- 旅客 2 -->
+              <div class="flex items-center gap-3">
+                <span
+                  class="
+                    flex size-7 shrink-0 items-center justify-center
+                    rounded-full bg-neutral-200 text-xs font-medium
+                    tracking-wider text-neutral-600
+                  "
+                >2</span>
+                <div class="flex-1 rounded-xl bg-neutral-100 p-4">
+                  <p
+                    class="
+                      mb-2 text-lg font-bold tracking-wider text-neutral-900
+                    "
+                  >
+                    林家豪
+                  </p>
+                  <dl class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        行李件數
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        1 件
+                      </dd>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        聯絡電話
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        0912345678
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+
+              <!-- 旅客 3 -->
+              <div class="flex items-center gap-3">
+                <span
+                  class="
+                    flex size-7 shrink-0 items-center justify-center
+                    rounded-full bg-neutral-200 text-xs font-medium
+                    tracking-wider text-neutral-600
+                  "
+                >3</span>
+                <div class="flex-1 rounded-xl bg-neutral-100 p-4">
+                  <p
+                    class="
+                      mb-2 text-lg font-bold tracking-wider text-neutral-900
+                    "
+                  >
+                    吳建國
+                  </p>
+                  <dl class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        行李件數
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        2 件
+                      </dd>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        聯絡電話
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        0912345678
+                      </dd>
+                    </div>
+                    <div class="flex items-start gap-2">
+                      <dt
+                        class="
+                          min-w-[76px] shrink-0 text-base tracking-wider
+                          text-neutral-600
+                        "
+                      >
+                        備註
+                      </dt>
+                      <dd
+                        class="flex-1 text-base tracking-wider text-neutral-900"
+                      >
+                        內有易碎物品，運送時請小心。
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 寄件日期（一般訂單） -->
+          <div
+            v-if="!isReseller"
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
             <div class="mb-4 flex items-center gap-2">
               <Calendar class="size-5 text-neutral-900" />
               <h2
@@ -573,8 +895,312 @@ function formatCurrency(amount: number) {
             </p>
           </div>
 
-          <!-- 費用明細 -->
+          <!-- 運送資訊 -->
           <div class="rounded-md border border-neutral-200 bg-neutral-0 p-6">
+            <!-- Header -->
+            <div class="mb-4 flex items-center gap-2">
+              <Truck class="size-5 text-neutral-900" />
+              <h2
+                class="
+                  flex-1 text-base font-semibold tracking-wider text-neutral-900
+                "
+              >
+                運送狀態
+              </h2>
+              <Badge
+                type="gray"
+                label="去程｜待交付"
+                size="lg"
+              />
+            </div>
+
+            <!-- 去程 + 回程 -->
+            <div class="flex items-stretch gap-2">
+              <!-- 去程 -->
+              <div class="flex-1 rounded-xl bg-neutral-100 p-3">
+                <!-- Sub-header -->
+                <div
+                  class="
+                    flex flex-wrap items-center justify-between gap-2 border-b
+                    border-neutral-200 pb-3
+                  "
+                >
+                  <div class="flex items-center gap-2">
+                    <Badge
+                      type="green"
+                      label="去程"
+                      size="sm"
+                    />
+                    <div
+                      class="
+                        flex items-center gap-1 text-base font-medium
+                        tracking-wider text-neutral-600
+                      "
+                    >
+                      <span>碼頭門市</span>
+                      <ChevronRight class="size-4 shrink-0" />
+                      <span>小琉球樂嶼海景民宿</span>
+                    </div>
+                  </div>
+                  <a
+                    href="#"
+                    class="text-sm font-medium tracking-wider text-primary-300"
+                  >
+                    行程編號 20260119-1
+                  </a>
+                </div>
+
+                <!-- Stepper -->
+                <div class="mt-3">
+                  <!-- Step 1: 已完成 -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div
+                        class="
+                          flex size-8 shrink-0 items-center justify-center
+                          rounded-full bg-primary-300
+                        "
+                      >
+                        <Check class="size-4 text-white" />
+                      </div>
+                      <div class="w-px flex-1 bg-primary-300"></div>
+                    </div>
+                    <div
+                      class="flex h-12 flex-1 items-start justify-between pt-1"
+                    >
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-900
+                        "
+                      >訂單確認中</span>
+                      <div
+                        class="
+                          text-right text-xs tracking-wider text-neutral-600
+                        "
+                      >
+                        <div>2/10</div>
+                        <div>18:30</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Step 2: 已完成 -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div
+                        class="
+                          flex size-8 shrink-0 items-center justify-center
+                          rounded-full bg-primary-300
+                        "
+                      >
+                        <Check class="size-4 text-white" />
+                      </div>
+                      <div class="w-px flex-1 bg-primary-300"></div>
+                    </div>
+                    <div
+                      class="flex h-12 flex-1 items-start justify-between pt-1"
+                    >
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-900
+                        "
+                      >訂單成立，待交付行李</span>
+                      <div
+                        class="
+                          text-right text-xs tracking-wider text-neutral-600
+                        "
+                      >
+                        <div>2/10</div>
+                        <div>18:45</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Step 3: 待處理 -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >已收件</span>
+                    </div>
+                  </div>
+
+                  <!-- Step 4: 待處理 -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >運送中</span>
+                    </div>
+                  </div>
+
+                  <!-- Step 5: 待處理 -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >已送達</span>
+                    </div>
+                  </div>
+
+                  <!-- Step 6: 待處理（最後一步，無連接線） -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                    </div>
+                    <div class="flex flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >已完成</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 回程 -->
+              <div class="flex-1 rounded-xl bg-neutral-100 p-3">
+                <!-- Sub-header -->
+                <div
+                  class="
+                    flex flex-wrap items-center justify-between gap-2 border-b
+                    border-neutral-200 pb-3
+                  "
+                >
+                  <div class="flex items-center gap-2">
+                    <Badge
+                      type="gray"
+                      label="回程"
+                      size="sm"
+                    />
+                    <div
+                      class="
+                        flex items-center gap-1 text-base font-medium
+                        tracking-wider text-neutral-600
+                      "
+                    >
+                      <span>小琉球樂嶼海景民宿</span>
+                      <ChevronRight class="size-4 shrink-0" />
+                      <span>碼頭門市</span>
+                    </div>
+                  </div>
+                  <a
+                    href="#"
+                    class="text-sm font-medium tracking-wider text-primary-300"
+                  >
+                    行程編號 20260119-1
+                  </a>
+                </div>
+
+                <!-- Stepper（全部待處理） -->
+                <div class="mt-3">
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >待交付行李</span>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >已收件</span>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >運送中</span>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                      <div class="w-px flex-1 bg-neutral-200"></div>
+                    </div>
+                    <div class="flex h-12 flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >已送達</span>
+                    </div>
+                  </div>
+
+                  <!-- 最後一步，無連接線 -->
+                  <div class="flex gap-2">
+                    <div class="flex flex-col items-center">
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
+                      </div>
+                    </div>
+                    <div class="flex flex-1 items-start pt-1">
+                      <span
+                        class="
+                          text-base font-medium tracking-wider text-neutral-600
+                        "
+                      >已完成</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 費用明細（一般訂單） -->
+          <div
+            v-if="!isReseller"
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
             <div class="mb-4 flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <CircleDollarSign class="size-5 text-neutral-900" />
@@ -587,7 +1213,7 @@ function formatCurrency(amount: number) {
                 </h2>
               </div>
               <!-- TODO: 等 API 支援後改為動態資料 -->
-              <UiBadge
+              <Badge
                 type="green"
                 label="已付款"
                 size="sm"
@@ -819,8 +1445,69 @@ function formatCurrency(amount: number) {
             </table>
           </div>
 
-          <!-- 領件資訊 -->
-          <div class="rounded-md border border-neutral-200 bg-neutral-0 p-6">
+          <!-- 票券明細（商家代售） -->
+          <div
+            v-if="isReseller"
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <Ticket class="size-5 text-neutral-900" />
+              <h2
+                class="text-base font-semibold tracking-wider text-neutral-900"
+              >
+                票券明細
+              </h2>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-sm tracking-wider
+                    text-neutral-500
+                  "
+                >
+                  原有票券
+                </dt>
+                <dd class="text-sm tracking-wider text-neutral-900">
+                  50 張
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-sm tracking-wider
+                    text-neutral-500
+                  "
+                >
+                  本次使用
+                </dt>
+                <dd class="text-sm tracking-wider text-neutral-900">
+                  4 張
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-sm tracking-wider
+                    text-neutral-500
+                  "
+                >
+                  票券餘額
+                </dt>
+                <dd
+                  class="text-sm font-semibold tracking-wider text-neutral-900"
+                >
+                  46 張
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 領件資訊（一般訂單） -->
+          <div
+            v-if="!isReseller"
+            class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
+          >
             <div class="mb-4 flex items-center gap-2">
               <Box class="size-5 text-neutral-900" />
               <h2
@@ -919,15 +1606,16 @@ function formatCurrency(amount: number) {
                   修改紀錄
                 </dt>
                 <dd>
-                  <a
-                    href="#"
+                  <button
+                    type="button"
                     class="
                       text-sm tracking-wider text-primary-300
                       hover:underline
                     "
+                    @click="showHistoryModal = true"
                   >
                     查看詳情
-                  </a>
+                  </button>
                 </dd>
               </div>
             </dl>
@@ -984,7 +1672,15 @@ function formatCurrency(amount: number) {
             </h3>
             <div class="flex flex-col gap-2">
               <Button
-                v-if="order.phone"
+                v-if="isReseller"
+                variant="outline"
+                class="w-full justify-center"
+              >
+                <Store class="size-4" />
+                聯絡商家
+              </Button>
+              <Button
+                v-if="!isReseller && order.phone"
                 as-child
                 variant="outline"
                 class="w-full justify-center"
@@ -1017,6 +1713,461 @@ function formatCurrency(amount: number) {
       </div>
     </div>
   </div>
+
+  <!-- 修改紀錄彈窗 -->
+  <Teleport to="body">
+    <div
+      v-if="showHistoryModal"
+      class="
+        fixed inset-0 z-50 flex items-center justify-center
+        bg-[rgba(33,37,41,0.6)] backdrop-blur-[12px]
+      "
+      @click.self="showHistoryModal = false"
+    >
+      <div
+        class="
+          relative flex h-[760px] w-[1080px] overflow-hidden rounded-2xl border
+          border-neutral-200 bg-white
+          shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <!-- 關閉按鈕 -->
+        <button
+          type="button"
+          class="
+            absolute top-2 right-2 z-10 flex items-center justify-center
+            rounded-full p-2
+            hover:bg-neutral-100
+          "
+          @click="showHistoryModal = false"
+        >
+          <X class="size-4 text-neutral-600" />
+        </button>
+
+        <!-- 左側：訂單詳情 -->
+        <div class="flex-1 overflow-y-auto bg-neutral-100 p-8">
+          <h1 class="mb-6 text-2xl font-bold tracking-wider text-neutral-900">
+            訂單編號 {{ order?.id }}
+          </h1>
+
+          <!-- 旅客資訊 -->
+          <div
+            class="
+              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+            "
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <User class="size-5 text-neutral-900" />
+              <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                旅客資訊
+              </h2>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  類別
+                </dt>
+                <dd>
+                  <Badge
+                    :type="getCategoryBadgeType(order?.category ?? '')"
+                    :label="order?.category ?? '-'"
+                    size="sm"
+                  />
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  旅客姓名
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  {{ order?.lineName }}
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  聯絡電話
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  {{ order?.phone }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 費用明細 -->
+          <div
+            class="
+              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+            "
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <CircleDollarSign class="size-5 text-neutral-900" />
+              <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                費用明細
+              </h2>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  方案
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  雙程套票
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  單價
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  NT$ 250
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  行李數量
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  2 件
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  總計
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  NT$ 500
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  付款狀態
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  已付款
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 起始點 / 送達點 -->
+          <div class="mb-4 flex gap-4">
+            <div
+              class="
+                flex-1 rounded-2xl border border-neutral-200 bg-white p-6
+                shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+              "
+            >
+              <div class="mb-4 flex items-center gap-2">
+                <MapPin class="size-5 text-neutral-900" />
+                <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                  起始點
+                </h2>
+              </div>
+              <dl class="flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                  <dt
+                    class="
+                      min-w-[100px] shrink-0 text-base tracking-wider
+                      text-neutral-600
+                    "
+                  >
+                    起始地點
+                  </dt>
+                  <dd class="text-base tracking-wider text-neutral-900">
+                    {{ order?.pickupLocation?.name }}
+                  </dd>
+                </div>
+                <div class="flex items-center gap-2">
+                  <dt
+                    class="
+                      min-w-[100px] shrink-0 text-base tracking-wider
+                      text-neutral-600
+                    "
+                  >
+                    地址
+                  </dt>
+                  <dd class="text-base tracking-wider text-neutral-900">
+                    {{ order?.pickupLocation?.address }}
+                  </dd>
+                </div>
+                <div
+                  v-if="order?.pickupLocation?.area"
+                  class="flex items-center gap-2"
+                >
+                  <dt
+                    class="
+                      min-w-[100px] shrink-0 text-base tracking-wider
+                      text-neutral-600
+                    "
+                  >
+                    區域
+                  </dt>
+                  <dd class="text-base tracking-wider text-neutral-900">
+                    區域 {{ order?.pickupLocation?.area }}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <div
+              class="
+                flex-1 rounded-2xl border border-neutral-200 bg-white p-6
+                shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+              "
+            >
+              <div class="mb-4 flex items-center gap-2">
+                <MapPin class="size-5 text-neutral-900" />
+                <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                  送達點
+                </h2>
+              </div>
+              <dl class="flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                  <dt
+                    class="
+                      min-w-[100px] shrink-0 text-base tracking-wider
+                      text-neutral-600
+                    "
+                  >
+                    送達地點
+                  </dt>
+                  <dd class="text-base tracking-wider text-neutral-900">
+                    {{ order?.deliveryLocation?.name }}
+                  </dd>
+                </div>
+                <div class="flex items-center gap-2">
+                  <dt
+                    class="
+                      min-w-[100px] shrink-0 text-base tracking-wider
+                      text-neutral-600
+                    "
+                  >
+                    地址
+                  </dt>
+                  <dd class="text-base tracking-wider text-neutral-900">
+                    {{ order?.deliveryLocation?.address }}
+                  </dd>
+                </div>
+                <div
+                  v-if="order?.deliveryLocation?.area"
+                  class="flex items-center gap-2"
+                >
+                  <dt
+                    class="
+                      min-w-[100px] shrink-0 text-base tracking-wider
+                      text-neutral-600
+                    "
+                  >
+                    區域
+                  </dt>
+                  <dd class="text-base tracking-wider text-neutral-900">
+                    區域 {{ order?.deliveryLocation?.area }}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          <!-- 備註 -->
+          <div
+            class="
+              mb-4 rounded-2xl border border-warning-200 bg-white p-6
+              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+            "
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <ClipboardList class="size-5 text-neutral-900" />
+              <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                備註
+              </h2>
+            </div>
+            <p class="text-base tracking-wider text-neutral-900">
+              內有易碎物品，運送時請小心。
+            </p>
+          </div>
+
+          <!-- 領件資訊 -->
+          <div
+            class="
+              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+            "
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <Box class="size-5 text-neutral-900" />
+              <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                領件資訊
+              </h2>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  領件人
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  洗齒坦
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  聯絡電話
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  0912345678
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 訂單資訊 -->
+          <div
+            class="
+              rounded-2xl border border-neutral-200 bg-white p-6
+              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+            "
+          >
+            <div class="mb-4 flex items-center gap-2">
+              <FileText class="size-5 text-neutral-900" />
+              <h2 class="text-lg font-bold tracking-wider text-neutral-900">
+                訂單資訊
+              </h2>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  訂單編號
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  {{ order?.id }}
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  建立時間
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  {{ formatDateTime(order?.createdAt) }}
+                </dd>
+              </div>
+              <div class="flex items-center gap-2">
+                <dt
+                  class="
+                    min-w-[100px] shrink-0 text-base tracking-wider
+                    text-neutral-600
+                  "
+                >
+                  最後更新
+                </dt>
+                <dd class="text-base tracking-wider text-neutral-900">
+                  {{ formatDateTime(order?.updatedAt) }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <!-- 右側：歷史紀錄 -->
+        <div
+          class="flex w-60 shrink-0 flex-col border-l border-neutral-200 p-4"
+        >
+          <h2 class="mb-4 text-base font-bold tracking-wider text-neutral-900">
+            歷史紀錄
+          </h2>
+          <div class="flex flex-col gap-1">
+            <button
+              v-for="(item, index) in historyItems"
+              :key="item.id"
+              type="button"
+              class="
+                flex flex-col gap-1 rounded-xl px-3 py-2 text-left
+                transition-colors
+              "
+              :class="
+                selectedHistoryIndex === index
+                  ? 'bg-primary-200'
+                  : 'hover:bg-neutral-100'
+              "
+              @click="selectedHistoryIndex = index"
+            >
+              <p class="text-sm tracking-wider text-neutral-900">
+                {{ item.datetime }}
+              </p>
+              <p
+                v-for="change in item.changes"
+                :key="change.field"
+                class="text-xs tracking-wider text-neutral-600"
+              >
+                {{ change.field }} {{ change.from }} → {{ change.to }}
+              </p>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

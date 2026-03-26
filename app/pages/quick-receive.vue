@@ -179,7 +179,7 @@ function removeSpecialItem(index: number) {
           >
             <!-- 訂單 Header -->
             <div class="flex items-center gap-2 border-b border-neutral-200 p-5">
-              <UiBadge
+              <Badge
                 :label="order.category"
                 type="gray"
                 size="lg"
@@ -192,12 +192,12 @@ function removeSpecialItem(index: number) {
                 {{ order.id }}
               </p>
               <div class="flex items-center gap-2">
-                <UiBadge
+                <Badge
                   :label="order.status"
                   type="gray"
                   size="lg"
                 />
-                <UiBadge
+                <Badge
                   :label="order.paymentStatus"
                   type="green"
                   size="lg"

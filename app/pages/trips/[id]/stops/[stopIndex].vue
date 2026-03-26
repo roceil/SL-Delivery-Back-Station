@@ -959,8 +959,8 @@ function closeAddOrderModal() {
                         <select
                           v-model="item.name"
                           class="
-                            rounded-xs border border-neutral-200 bg-white px-3
-                            py-2 text-base text-neutral-900 outline-none
+                            w-full rounded-xs border border-neutral-200 bg-white
+                            px-3 py-2 text-base text-neutral-900 outline-none
                             focus:border-neutral-400
                           "
                         >
@@ -979,9 +979,9 @@ function closeAddOrderModal() {
                           type="text"
                           placeholder="50"
                           class="
-                            rounded-xs border border-neutral-200 bg-white px-3
-                            py-2 text-base tracking-[0.8px] text-neutral-900
-                            outline-none
+                            w-full rounded-xs border border-neutral-200 bg-white
+                            px-3 py-2 text-base tracking-[0.8px]
+                            text-neutral-900 outline-none
                             placeholder:text-neutral-500
                             focus:border-neutral-400
                           "
