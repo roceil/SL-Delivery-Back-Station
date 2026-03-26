@@ -41,6 +41,7 @@ interface FeeItem {
 
 interface Order {
   id: string
+  orderNumber: string
   voucherId: string | null
   userId: number | null
   category: string
@@ -72,10 +73,6 @@ useHead({
   title: `訂單詳細 #${orderId} - 行李運送系統`,
 })
 
-onMounted(() => {
-  setBreadcrumb({ label: orderId })
-})
-
 onBeforeRouteLeave(() => {
   clearBreadcrumb()
 })
@@ -96,6 +93,7 @@ const { checkPrintService, printCanvas } = useSilentPrint()
 const silentPrintAvailable = ref(false)
 
 onMounted(async () => {
+  setBreadcrumb({ label: order.value?.orderNumber || orderId })
   silentPrintAvailable.value = await checkPrintService()
 })
 
@@ -220,15 +218,6 @@ async function copyOrderId() {
   await navigator.clipboard.writeText(order.value.id)
 }
 
-const statusConfig = {
-  pending: { text: '待確認', badgeType: 'orange' as const },
-  confirmed: { text: '已確認', badgeType: 'blue' as const },
-  assigned: { text: '已分配行程', badgeType: 'sky' as const },
-  in_delivery: { text: '配送中', badgeType: 'light-sky' as const },
-  delivered: { text: '已送達', badgeType: 'green' as const },
-  cancelled: { text: '已取消', badgeType: 'red' as const },
-}
-
 const categoryConfig = {
   散客: { badgeType: 'sky' as const },
   合作: { badgeType: 'light-sky' as const },
@@ -240,14 +229,6 @@ const categoryConfig = {
 const paymentStatusConfig = {
   paid: { text: '已付款', badgeType: 'green' as const },
   unpaid: { text: '待付款', badgeType: 'orange' as const },
-}
-
-function getStatusText(status: string) {
-  return statusConfig[status as keyof typeof statusConfig]?.text || status
-}
-
-function getStatusBadgeType(status: string) {
-  return statusConfig[status as keyof typeof statusConfig]?.badgeType || 'gray'
 }
 
 function getCategoryBadgeType(category: string) {
@@ -399,7 +380,7 @@ function isStepDone(n: number) {
           </NuxtLink>
         </Button>
         <h1 class="text-2xl font-bold tracking-wider text-neutral-900">
-          訂單編號 {{ order.id }}
+          訂單編號 {{ order.orderNumber || order.id }}
         </h1>
         <button
           type="button"
@@ -409,8 +390,8 @@ function isStepDone(n: number) {
           <Copy class="size-4" />
         </button>
         <Badge
-          :type="getStatusBadgeType(order.status)"
-          :label="getStatusText(order.status)"
+          :type="getOrderStatusBadge(order.status, !!order.scheduleId).type"
+          :label="getOrderStatusBadge(order.status, !!order.scheduleId).label"
           size="lg"
         />
         <Badge
@@ -761,7 +742,7 @@ function isStepDone(n: number) {
               </h2>
             </div>
             <p class="text-sm tracking-wider text-neutral-900">
-              {{ order.notes || '（無備註）' }}
+              {{ order.notes || '無備註' }}
             </p>
           </div>
 
@@ -1186,7 +1167,7 @@ function isStepDone(n: number) {
                   訂單編號
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  {{ order.id }}
+                  {{ order.orderNumber || order.id }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1622,7 +1603,7 @@ function isStepDone(n: number) {
               </h2>
             </div>
             <p class="text-base tracking-wider text-neutral-900">
-              {{ order?.notes || '（無備註）' }}
+              {{ order?.notes || '無備註' }}
             </p>
           </div>
 

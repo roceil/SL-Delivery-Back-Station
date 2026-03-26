@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   const courierStatus = Array.isArray(data.couriers_status) ? data.couriers_status[0] : data.couriers_status
 
   return {
-    id: data.id,
+    id: data.id.toString(),
     employeeNumber: data.employee_number,
     name: data.name,
     phone: data.phone,

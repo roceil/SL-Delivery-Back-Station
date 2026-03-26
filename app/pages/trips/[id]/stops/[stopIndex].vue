@@ -18,80 +18,46 @@ interface StopOrder {
   isSale?: boolean
 }
 
-// 假資料
-const stopData = ref({
-  index: stopIndex,
-  name: '小琉球樂嶼海景民宿',
-  status: '進行中',
-  pickups: [
-    {
-      id: '1',
-      lineName: '林家豪',
-      orderNumber: 'LL-2506-043-1',
-      luggageCount: 1,
-      status: '待掃描',
-    },
-    {
-      id: '2',
-      lineName: '吳建國',
-      orderNumber: 'LL-2506-043-1',
-      luggageCount: 2,
-      status: '待掃描',
-      notes: '內有易碎物品，運送時請小心。',
-    },
-    {
-      id: '3',
-      lineName: '小琉球樂嶼海景民宿',
-      orderNumber: 'LL-2506-043-1',
-      luggageCount: 2,
-      status: '待掃描',
-      isSale: true,
-    },
-  ] as StopOrder[],
-  deliveries: [
-    {
-      id: '4',
-      lineName: '王阿伯',
-      orderNumber: 'LL-2506-043-1',
-      luggageCount: 1,
-      status: '待掃描',
-    },
-    {
-      id: '5',
-      lineName: '蔡阿福',
-      orderNumber: 'LL-2506-043-1',
-      luggageCount: 1,
-      status: '待掃描',
-    },
-  ] as StopOrder[],
-})
+const { data: stopData, error: stopError } = await useFetch<{
+  index: number
+  name: string
+  totalStops: number
+  pickups: StopOrder[]
+  deliveries: StopOrder[]
+}>(`/api/trips/${tripId}/stops/${stopIndex}`)
+
+if (stopError.value) {
+  throw createError({ statusCode: 404, message: '找不到站點資料' })
+}
 
 const pickupKeyword = ref('')
 const deliveryKeyword = ref('')
 
 const filteredPickups = computed(() => {
+  const pickups = stopData.value?.pickups ?? []
   if (!pickupKeyword.value)
-    return stopData.value.pickups
+    return pickups
   const kw = pickupKeyword.value.toLowerCase()
-  return stopData.value.pickups.filter(o =>
+  return pickups.filter(o =>
     o.lineName.toLowerCase().includes(kw) || o.orderNumber.toLowerCase().includes(kw),
   )
 })
 
 const filteredDeliveries = computed(() => {
+  const deliveries = stopData.value?.deliveries ?? []
   if (!deliveryKeyword.value)
-    return stopData.value.deliveries
+    return deliveries
   const kw = deliveryKeyword.value.toLowerCase()
-  return stopData.value.deliveries.filter(o =>
+  return deliveries.filter(o =>
     o.lineName.toLowerCase().includes(kw) || o.orderNumber.toLowerCase().includes(kw),
   )
 })
 
 const totalPickupLuggage = computed(() =>
-  stopData.value.pickups.reduce((s, o) => s + o.luggageCount, 0),
+  (stopData.value?.pickups ?? []).reduce((s, o) => s + o.luggageCount, 0),
 )
 const totalDeliveryLuggage = computed(() =>
-  stopData.value.deliveries.reduce((s, o) => s + o.luggageCount, 0),
+  (stopData.value?.deliveries ?? []).reduce((s, o) => s + o.luggageCount, 0),
 )
 
 // 補登訂單彈窗
@@ -162,16 +128,8 @@ function closeAddOrderModal() {
         </svg>
       </button>
       <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
-        第{{ stopIndex + 1 }}站｜{{ stopData.name }}
+        第{{ stopIndex + 1 }}站｜{{ stopData?.name }}
       </h4>
-      <span
-        class="
-          rounded-full bg-[#eaf5ff] px-2 py-1 text-xs font-medium
-          tracking-[0.6px] text-[#3087db]
-        "
-      >
-        {{ stopData.status }}
-      </span>
     </div>
 
     <!-- 主內容 -->
@@ -180,7 +138,7 @@ function closeAddOrderModal() {
       <div class="col-span-8 flex flex-col gap-4">
         <!-- 攬件卡片 -->
         <div
-          v-if="stopData.pickups.length > 0"
+          v-if="(stopData?.pickups?.length ?? 0) > 0"
           class="
             flex flex-col gap-4 rounded-2xl bg-white p-6
             shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
@@ -349,7 +307,7 @@ function closeAddOrderModal() {
 
         <!-- 放置卡片 -->
         <div
-          v-if="stopData.deliveries.length > 0"
+          v-if="(stopData?.deliveries?.length ?? 0) > 0"
           class="
             flex flex-col gap-4 rounded-2xl bg-white p-6
             shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
@@ -1054,7 +1012,7 @@ function closeAddOrderModal() {
                   class="
                     text-base font-medium tracking-[0.8px] text-neutral-900
                   "
-                >{{ stopData.name }}</span>
+                >{{ stopData?.name }}</span>
               </div>
               <div class="flex flex-col gap-1 rounded-sm bg-neutral-100 p-4">
                 <span class="text-sm tracking-[0.7px] text-neutral-600">剩餘票券</span>

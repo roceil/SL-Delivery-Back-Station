@@ -6,6 +6,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '缺少訂單 ID' })
   }
 
+  const numericId = Number.parseInt(id)
+  if (Number.isNaN(numericId)) {
+    throw createError({ statusCode: 400, message: '無效的訂單 ID' })
+  }
+
   const { data: orderData, error } = await supabase
     .from('orders')
     .select(`
@@ -31,7 +36,7 @@ export default defineEventHandler(async (event) => {
       end_point:stations!orders_end_point_fkey (id, name, address, area),
       order_status:orders_status (status)
     `)
-    .eq('order_number', id)
+    .eq('id', numericId)
     .single()
 
   if (error || !orderData) {
@@ -99,7 +104,8 @@ export default defineEventHandler(async (event) => {
   const endPoint = Array.isArray(orderData.end_point) ? orderData.end_point[0] : orderData.end_point
 
   return {
-    id: orderData.order_number ?? orderData.id.toString(),
+    id: orderData.id.toString(),
+    orderNumber: orderData.order_number || '',
     voucherId: orderData.voucher_id,
     userId: orderData.user_id,
     category: orderCategory,

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { DateValue } from '@internationalized/date'
+import type { BadgeType } from '@/components/ui/badge/Badge.vue'
 import { DateFormatter, getLocalTimeZone } from '@internationalized/date'
 import { CalendarIcon, ChevronRight, Luggage } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+
 import { cn } from '@/lib/utils'
 
 interface Location {
@@ -24,7 +26,8 @@ interface Location {
 }
 
 interface Order {
-  id: string  // 對外識別碼（voucher_id）
+  id: string
+  orderNumber: string
   category: string
   lineName: string
   phone: string
@@ -36,6 +39,7 @@ interface Order {
   paymentStatus: string | null
   status: string
   scheduleId: string | null
+  returnScheduleId: string | null
   pickupLocation: Location
   deliveryLocation: Location
   notes: string
@@ -55,12 +59,6 @@ const df = new DateFormatter('zh-TW', { dateStyle: 'medium' })
 const dateFrom = ref<DateValue>()
 const dateTo = ref<DateValue>()
 
-// 依 scheduleId 推算行程分配狀態
-function getTripAssignment(order: Order): string {
-  if (!order.scheduleId) return 'unassigned'
-  return 'assigned'
-}
-
 const filters = reactive({
   keyword: '',
   customerType: '',
@@ -79,8 +77,8 @@ const filteredOrders = computed(() => {
       const kw = filters.keyword.toLowerCase()
       const matchName = order.lineName?.toLowerCase().includes(kw)
       const matchPhone = order.phone?.toLowerCase().includes(kw)
-      const matchId = order.id?.toLowerCase().includes(kw)
-      if (!matchName && !matchPhone && !matchId)
+      const matchOrderNumber = order.orderNumber?.toLowerCase().includes(kw)
+      if (!matchName && !matchPhone && !matchOrderNumber)
         return false
     }
 
@@ -90,7 +88,7 @@ const filteredOrders = computed(() => {
     if (filters.orderStatus && order.status !== filters.orderStatus)
       return false
 
-    if (filters.tripAssignment && getTripAssignment(order) !== filters.tripAssignment)
+    if (filters.tripAssignment && getTripAssignmentKey(order.scheduleId, order.returnScheduleId, !!order.returnDate) !== filters.tripAssignment)
       return false
 
     if (dateFrom.value) {
@@ -150,8 +148,6 @@ function formatDate(dateString?: string | null) {
 }
 
 type CategoryBadgeType = 'gray' | 'sky' | 'light-sky' | 'amber' | 'peach' | 'mint'
-type StatusBadgeType = 'gray' | 'red' | 'blue' | 'orange'
-type TripBadgeType = 'gray' | 'red' | 'blue'
 
 const categoryBadgeMap: Record<string, { type: CategoryBadgeType, label: string }> = {
   散客: { type: 'sky', label: '散客' },
@@ -161,32 +157,8 @@ const categoryBadgeMap: Record<string, { type: CategoryBadgeType, label: string 
   KKday: { type: 'mint', label: 'KKday' },
 }
 
-const statusBadgeMap: Record<string, { type: StatusBadgeType, label: string }> = {
-  pending: { type: 'red', label: '待確認' },
-  confirmed: { type: 'gray', label: '已確認' },
-  assigned: { type: 'blue', label: '已分配行程' },
-  in_delivery: { type: 'blue', label: '配送中' },
-  delivered: { type: 'gray', label: '已送達' },
-  cancelled: { type: 'gray', label: '已取消' },
-}
-
-const tripBadgeMap: Record<string, { type: TripBadgeType, label: string }> = {
-  assigned: { type: 'gray', label: '已分配' },
-  unassigned: { type: 'red', label: '尚未分配' },
-  outbound_unassigned: { type: 'blue', label: '去程未分配' },
-}
-
-function getCategoryBadge(category?: string) {
+function getCategoryBadge(category?: string): { type: BadgeType, label: string } {
   return categoryBadgeMap[category ?? ''] ?? { type: 'gray' as const, label: category ?? '-' }
-}
-
-function getStatusBadge(status?: string) {
-  return statusBadgeMap[status ?? ''] ?? { type: 'gray' as const, label: status ?? '-' }
-}
-
-function getTripBadge(order: Order) {
-  const assignment = getTripAssignment(order)
-  return tripBadgeMap[assignment] ?? { type: 'red' as const, label: '尚未分配' }
 }
 
 const tableColumns = [
@@ -332,6 +304,9 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
                 </SelectItem>
                 <SelectItem value="outbound_unassigned">
                   去程未分配
+                </SelectItem>
+                <SelectItem value="return_unassigned">
+                  回程未分配
                 </SelectItem>
               </SelectGroup>
             </SelectContent>
@@ -561,8 +536,8 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
               <!-- 訂單狀態 -->
               <div>
                 <Badge
-                  :type="getStatusBadge(order.status).type"
-                  :label="getStatusBadge(order.status).label"
+                  :type="getOrderStatusBadge(order.status).type"
+                  :label="getOrderStatusBadge(order.status).label"
                   size="lg"
                 />
               </div>
@@ -570,8 +545,8 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
               <!-- 行程分配 -->
               <div>
                 <Badge
-                  :type="getTripBadge(order).type"
-                  :label="getTripBadge(order).label"
+                  :type="getTripAssignmentBadge(order.scheduleId, order.returnScheduleId, !!order.returnDate).type"
+                  :label="getTripAssignmentBadge(order.scheduleId, order.returnScheduleId, !!order.returnDate).label"
                   size="lg"
                 />
               </div>

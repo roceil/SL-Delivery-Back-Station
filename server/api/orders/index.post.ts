@@ -1,3 +1,5 @@
+import { nanoid } from 'nanoid'
+
 export default defineEventHandler(async (event) => {
   const supabase = useServiceRoleClient()
   const body = await readBody(event)
@@ -195,6 +197,7 @@ export default defineEventHandler(async (event) => {
         platform_id: platformId,
         user_id: userId,
         order_number: orderNumber,
+        voucher_id: nanoid(10),
         start_point: pickupLocationId,
         end_point: deliveryLocationId,
         status: 1, // pending 待確認

@@ -14,18 +14,19 @@ interface Courier {
 
 interface RouteStep {
   name: string
-  pickups: MockOrder[]
-  deliveries: MockOrder[]
+  pickups: AvailableOrder[]
+  deliveries: AvailableOrder[]
 }
 
-interface MockOrder {
+interface AvailableOrder {
   id: string
   orderNumber: string
   lineName: string
   luggageCount: number
   area: string
-  pickupLocation: { name: string }
-  deliveryLocation: { name: string }
+  departureDate: string
+  pickupLocation: { id: string, name: string }
+  deliveryLocation: { id: string, name: string }
   notes?: string
 }
 
@@ -51,15 +52,8 @@ const form = ref({
   notes: '',
 })
 
-// 假資料
-const mockOrders: MockOrder[] = [
-  { id: '1', orderNumber: 'LSE09123546', lineName: '吳建國', luggageCount: 2, area: 'C', pickupLocation: { name: '碼頭門市' }, deliveryLocation: { name: '小琉球樂嶼海景民宿' }, notes: '內有易碎物品，運送時請小心。' },
-  { id: '2', orderNumber: 'LSE09123547', lineName: '王大明', luggageCount: 1, area: 'D', pickupLocation: { name: '碼頭門市' }, deliveryLocation: { name: '嶼景6.8' } },
-  { id: '3', orderNumber: 'LSE09123548', lineName: '蔡雅文', luggageCount: 1, area: 'A', pickupLocation: { name: '小琉球樂嶼海景民宿' }, deliveryLocation: { name: '碼頭門市' } },
-  { id: '4', orderNumber: 'LSE09123549', lineName: '林家豪', luggageCount: 2, area: 'A', pickupLocation: { name: '碼頭門市' }, deliveryLocation: { name: '小琉球樂嶼海景民宿' } },
-  { id: '5', orderNumber: 'LSE09123550', lineName: '王曉明', luggageCount: 2, area: 'B', pickupLocation: { name: '碼頭門市' }, deliveryLocation: { name: '居琉潛水' } },
-  { id: '6', orderNumber: 'LSE09123551', lineName: '陳美珍', luggageCount: 2, area: 'B', pickupLocation: { name: '碼頭門市' }, deliveryLocation: { name: '居琉潛水' } },
-]
+const { data: availableOrdersData } = await useFetch<AvailableOrder[]>('/api/orders/available')
+const availableOrders = computed(() => availableOrdersData.value ?? [])
 
 // 彈窗狀態
 const showModal = ref(false)
@@ -68,8 +62,8 @@ const modalKeyword = ref('')
 const modalArea = ref('')
 const modalDestination = ref('')
 
-const areaListModal = computed(() => [...new Set(mockOrders.map(o => o.area))].sort())
-const destinationList = computed(() => [...new Set(mockOrders.map(o => o.deliveryLocation.name))])
+const areaListModal = computed<string[]>(() => [...new Set(availableOrders.value.map(o => o.area))].sort())
+const destinationList = computed<string[]>(() => [...new Set(availableOrders.value.map(o => o.deliveryLocation.name))])
 
 const hasModalActiveFilters = computed(() =>
   !!(modalKeyword.value || modalArea.value || modalDestination.value),
@@ -82,7 +76,7 @@ function resetModalFilters() {
 }
 
 const filteredMockOrders = computed(() => {
-  return mockOrders.filter((o) => {
+  return availableOrders.value.filter((o) => {
     if (modalKeyword.value) {
       const kw = modalKeyword.value.toLowerCase()
       if (!o.lineName.toLowerCase().includes(kw) && !o.orderNumber.toLowerCase().includes(kw))
@@ -96,7 +90,7 @@ const filteredMockOrders = computed(() => {
   })
 })
 
-const tempSelectedOrders = computed(() => mockOrders.filter(o => tempSelected.value.includes(o.id)))
+const tempSelectedOrders = computed(() => availableOrders.value.filter(o => tempSelected.value.includes(o.id)))
 const tempTotalLuggage = computed(() => tempSelectedOrders.value.reduce((sum, o) => sum + o.luggageCount, 0))
 
 function openModal() {
@@ -132,7 +126,7 @@ const scheduledDateValue = computed<DateValue | undefined>({
 
 const { data: couriers } = await useFetch<Courier[]>('/api/couriers')
 
-const selectedOrdersData = computed(() => mockOrders.filter(o => form.value.selectedOrders.includes(o.id)))
+const selectedOrdersData = computed(() => availableOrders.value.filter(o => form.value.selectedOrders.includes(o.id)))
 
 const orderStats = computed(() => {
   const totalLuggage = selectedOrdersData.value.reduce((sum, o) => sum + o.luggageCount, 0)
@@ -814,7 +808,7 @@ async function submitForm() {
               新增訂單
             </h4>
             <span class="text-base tracking-[0.8px] text-neutral-600">
-              目前有 {{ mockOrders.length }} 筆訂單可供分配
+              目前有 {{ availableOrders.length }} 筆訂單可供分配
             </span>
           </div>
 
@@ -1056,47 +1050,6 @@ async function submitForm() {
             @click="closeStopModal"
           >
             <X class="size-4 text-neutral-600" />
-          </button>
-        </div>
-
-        <!-- Tab 切換 -->
-        <div
-          class="
-            flex w-full gap-1 self-start rounded-xs bg-white p-1
-            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
-          "
-        >
-          <button
-            type="button"
-            class="
-              flex w-1/2 items-center justify-center gap-2 rounded-xs px-4 py-2
-              text-sm font-medium tracking-[0.7px] transition-colors
-            "
-            :class="
-              activeStopTab === 'pickup'
-                ? 'bg-neutral-200 text-neutral-900'
-                : 'text-neutral-600 hover:text-neutral-900'
-            "
-            @click="activeStopTab = 'pickup'; stopSearchKeyword = ''"
-          >
-            <Truck class="size-4" />
-            攬件
-          </button>
-          <button
-            type="button"
-            class="
-              flex w-1/2 items-center justify-center gap-2 rounded-xs px-4 py-2
-              text-sm font-medium tracking-[0.7px] transition-colors
-            "
-            :class="
-              activeStopTab === 'delivery'
-                ? 'bg-neutral-200 text-neutral-900'
-                : 'text-neutral-600 hover:text-neutral-900'
-            "
-            @click="activeStopTab = 'delivery'; stopSearchKeyword = ''"
-          >
-            <Store class="size-4" />
-            放置
           </button>
         </div>
 

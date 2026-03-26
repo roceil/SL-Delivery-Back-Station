@@ -151,20 +151,6 @@ const pagedTrips = computed(() => {
   return filteredTrips.value.slice(start, start + pageSize)
 })
 
-// Badge 狀態
-interface StatusBadge { type: 'red' | 'blue' | 'green' | 'gray', label: string }
-
-const statusBadgeMap: Record<string, StatusBadge> = {
-  pending: { type: 'red', label: '尚未出發' },
-  dispatched: { type: 'blue', label: '運送中' },
-  completed: { type: 'green', label: '已送達' },
-  cancelled: { type: 'gray', label: '已取消' },
-}
-
-function getStatusBadge(status: string): StatusBadge {
-  return statusBadgeMap[status] ?? { type: 'gray', label: status }
-}
-
 function formatDate(dateStr: string) {
   if (!dateStr)
     return '-'
@@ -475,8 +461,8 @@ async function viewTripMap(tripId: string) {
               <!-- 運送狀態 -->
               <div class="px-4">
                 <Badge
-                  :type="getStatusBadge(trip.status).type"
-                  :label="getStatusBadge(trip.status).label"
+                  :type="getTripStatusBadge(trip.status).type"
+                  :label="getTripStatusBadge(trip.status).label"
                   size="sm"
                 />
               </div>

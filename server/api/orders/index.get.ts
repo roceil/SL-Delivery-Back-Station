@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
       platform_id,
       platform_type,
       schedule_id,
+      return_schedule_id,
       status,
       service_plan,
       payment_status,
@@ -42,9 +43,12 @@ export default defineEventHandler(async (event) => {
   const kkdayOrderIds: string[] = []
 
   ordersData.forEach((order) => {
-    if (order.platform_type === 4) normalOrderIds.push(order.platform_id)
-    else if (order.platform_type === 3) netOrderIds.push(order.platform_id)
-    else if (order.platform_type === 5) kkdayOrderIds.push(order.platform_id)
+    if (order.platform_type === 4)
+      normalOrderIds.push(order.platform_id)
+    else if (order.platform_type === 3)
+      netOrderIds.push(order.platform_id)
+    else if (order.platform_type === 5)
+      kkdayOrderIds.push(order.platform_id)
   })
 
   // 查詢 normal_orders（僅需 contacts, receive_time）
@@ -57,7 +61,8 @@ export default defineEventHandler(async (event) => {
     if (filterDate)
       q = q.eq('departure_date', filterDate)
     const { data, error: e } = await q
-    if (e) throw createError({ statusCode: 500, message: `查詢散客訂單失敗: ${e.message}` })
+    if (e)
+      throw createError({ statusCode: 500, message: `查詢散客訂單失敗: ${e.message}` })
     data?.forEach(no => normalOrdersMap.set(no.id.toString(), no))
   }
 
@@ -71,7 +76,8 @@ export default defineEventHandler(async (event) => {
     if (filterDate)
       q = q.eq('departure_date', filterDate)
     const { data, error: e } = await q
-    if (e) throw createError({ statusCode: 500, message: `查詢同業訂單失敗: ${e.message}` })
+    if (e)
+      throw createError({ statusCode: 500, message: `查詢同業訂單失敗: ${e.message}` })
     data?.forEach(no => netOrdersMap.set(no.id.toString(), no))
   }
 
@@ -85,7 +91,8 @@ export default defineEventHandler(async (event) => {
     if (filterDate)
       q = q.eq('departure_date', filterDate)
     const { data, error: e } = await q
-    if (e) throw createError({ statusCode: 500, message: `查詢 KKday 訂單失敗: ${e.message}` })
+    if (e)
+      throw createError({ statusCode: 500, message: `查詢 KKday 訂單失敗: ${e.message}` })
     data?.forEach(ko => kkdayOrdersMap.set(ko.id.toString(), ko))
   }
 
@@ -99,7 +106,8 @@ export default defineEventHandler(async (event) => {
     if (order.platform_type === 4) {
       orderCategory = '散客'
       const normalOrder = normalOrdersMap.get(order.platform_id)
-      if (!normalOrder) return null
+      if (!normalOrder)
+        return null
       const contacts = normalOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
@@ -107,7 +115,8 @@ export default defineEventHandler(async (event) => {
     }
     else if (order.platform_type === 3) {
       const netOrder = netOrdersMap.get(order.platform_id)
-      if (!netOrder) return null
+      if (!netOrder)
+        return null
       orderCategory = netOrder.platform_type === 1 ? 'Trip' : netOrder.platform_type === 2 ? 'Klook' : '合作'
       const contacts = netOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
@@ -117,7 +126,8 @@ export default defineEventHandler(async (event) => {
     else if (order.platform_type === 5) {
       orderCategory = 'KKday'
       const kkdayOrder = kkdayOrdersMap.get(order.platform_id)
-      if (!kkdayOrder) return null
+      if (!kkdayOrder)
+        return null
       const contacts = kkdayOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
@@ -128,7 +138,8 @@ export default defineEventHandler(async (event) => {
     const endPoint = Array.isArray(order.end_point) ? order.end_point[0] : order.end_point
 
     return {
-      id: order.order_number ?? order.id.toString(),
+      id: order.id.toString(),
+      orderNumber: order.order_number || '',
       category: orderCategory,
       lineName,
       phone,
@@ -140,6 +151,7 @@ export default defineEventHandler(async (event) => {
       paymentStatus: order.payment_status,
       status: orderStatus?.status || 'pending',
       scheduleId: order.schedule_id?.toString() || null,
+      returnScheduleId: order.return_schedule_id?.toString() || null,
       pickupLocation: {
         id: startPoint?.id?.toString() || '',
         name: startPoint?.name || '',

@@ -45,7 +45,7 @@ export default defineEventHandler(async (_event) => {
     )[0]
 
     return {
-      id: courier.id,
+      id: courier.id.toString(),
       employeeNumber: courier.employee_number,
       name: courier.name,
       phone: courier.phone,

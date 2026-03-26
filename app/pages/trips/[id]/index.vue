@@ -16,78 +16,80 @@ const router = useRouter()
 const route = useRoute()
 const tripId = route.params.id as string
 
+interface TripOrder {
+  id: string
+  lineName: string
+  luggageCount: number
+  status: string
+  pickupLocation: { id: string, name: string }
+  deliveryLocation: { id: string, name: string }
+  notes: string
+}
+
 interface RouteStep {
   name: string
+  stationId: string
   totalLuggage: number
   pickups: { count: number }[]
   deliveries: { count: number }[]
 }
 
-// 假資料
-const trip = ref({
-  id: tripId,
-  name: '20260119-1',
-  status: 'pending',
-  statusLabel: '尚未出發',
-  courierName: '長樂公主',
-  scheduledDate: '2026/2/10',
-  orderCount: 3,
-  totalLuggage: 4,
+const { data: trip, error: tripError } = await useFetch(`/api/trips/${tripId}`)
+const { data: orders } = await useFetch<TripOrder[]>(`/api/trips/${tripId}/orders`)
+
+if (tripError.value) {
+  throw createError({ statusCode: 404, message: '找不到行程' })
+}
+
+const tripStatus = computed(() => (trip.value as any)?.status || 'pending')
+const tripStatusLabel = computed(() => getTripStatusBadge(tripStatus.value).label)
+
+const orderCount = computed(() => orders.value?.length || 0)
+const totalLuggage = computed(() => orders.value?.reduce((s, o) => s + o.luggageCount, 0) || 0)
+
+const routeSteps = computed<RouteStep[]>(() => {
+  if (!orders.value?.length)
+    return []
+
+  const stops: string[] = []
+  const stepMap = new Map<string, RouteStep>()
+
+  for (const order of orders.value) {
+    const pickupId = order.pickupLocation.id
+    const deliveryId = order.deliveryLocation.id
+
+    if (!stepMap.has(pickupId)) {
+      stops.push(pickupId)
+      stepMap.set(pickupId, {
+        name: order.pickupLocation.name,
+        stationId: pickupId,
+        totalLuggage: 0,
+        pickups: [],
+        deliveries: [],
+      })
+    }
+    if (!stepMap.has(deliveryId)) {
+      stops.push(deliveryId)
+      stepMap.set(deliveryId, {
+        name: order.deliveryLocation.name,
+        stationId: deliveryId,
+        totalLuggage: 0,
+        pickups: [],
+        deliveries: [],
+      })
+    }
+
+    stepMap.get(pickupId)!.pickups.push({ count: order.luggageCount })
+    stepMap.get(pickupId)!.totalLuggage += order.luggageCount
+    stepMap.get(deliveryId)!.deliveries.push({ count: order.luggageCount })
+    stepMap.get(deliveryId)!.totalLuggage += order.luggageCount
+  }
+
+  return stops.map(id => stepMap.get(id)!)
 })
 
-const mockOrders = [
-  {
-    id: '1',
-    lineName: '王阿伯',
-    orderNumber: 'LSE09123546',
-    luggageCount: 1,
-    status: '待運送',
-    pickupLocation: '小琉球樂嶼海景民宿',
-    deliveryLocation: '碼頭門市',
-  },
-  {
-    id: '2',
-    lineName: '林家豪',
-    orderNumber: 'LSE09123547',
-    luggageCount: 1,
-    status: '待運送',
-    pickupLocation: '碼頭門市',
-    deliveryLocation: '小琉球樂嶼海景民宿',
-  },
-  {
-    id: '3',
-    lineName: '吳建國',
-    orderNumber: 'LSE09123548',
-    luggageCount: 2,
-    status: '待運送',
-    pickupLocation: '碼頭門市',
-    deliveryLocation: '小琉球樂嶼海景民宿',
-  },
-]
-
-const routeSteps: RouteStep[] = [
-  {
-    name: '碼頭門市',
-    totalLuggage: 3,
-    pickups: [{ count: 2 }],
-    deliveries: [],
-  },
-  {
-    name: '小琉球樂嶼海景民宿',
-    totalLuggage: 4,
-    pickups: [{ count: 2 }],
-    deliveries: [{ count: 2 }],
-  },
-  {
-    name: '碼頭門市',
-    totalLuggage: 1,
-    pickups: [],
-    deliveries: [{ count: 2 }],
-  },
-]
-
 function copyTripName() {
-  navigator.clipboard.writeText(trip.value.name)
+  navigator.clipboard.writeText((trip.value as any)?.name || '')
 }
 </script>
 
@@ -118,7 +120,7 @@ function copyTripName() {
         </svg>
       </button>
       <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
-        行程編號 {{ trip.name }}
+        行程編號 {{ (trip as any)?.name }}
       </h4>
       <button
         type="button"
@@ -136,7 +138,7 @@ function copyTripName() {
           tracking-[0.6px] text-[#d74f4f]
         "
       >
-        {{ trip.statusLabel }}
+        {{ tripStatusLabel }}
       </span>
     </div>
 
@@ -162,7 +164,7 @@ function copyTripName() {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ trip.courierName }}
+                {{ (trip as any)?.courierName || '未分配' }}
               </span>
             </div>
             <div class="flex flex-col gap-1 rounded-sm bg-neutral-100 p-4">
@@ -170,7 +172,7 @@ function copyTripName() {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ trip.totalLuggage }}
+                {{ totalLuggage }}
               </span>
             </div>
             <div class="flex flex-col gap-1 rounded-sm bg-neutral-100 p-4">
@@ -178,7 +180,7 @@ function copyTripName() {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ trip.orderCount }}
+                {{ orderCount }}
               </span>
             </div>
             <div class="flex flex-col gap-1 rounded-sm bg-neutral-100 p-4">
@@ -186,7 +188,7 @@ function copyTripName() {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ trip.scheduledDate }}
+                {{ (trip as any)?.scheduledDate }}
               </span>
             </div>
           </div>
@@ -204,9 +206,19 @@ function copyTripName() {
             <span class="text-lg font-bold tracking-[0.9px] text-neutral-900">運送任務</span>
           </div>
 
-          <div class="flex flex-col gap-3">
+          <div
+            v-if="!orders?.length"
+            class="py-4 text-center text-sm text-neutral-400"
+          >
+            此行程尚無訂單
+          </div>
+
+          <div
+            v-else
+            class="flex flex-col gap-3"
+          >
             <div
-              v-for="(order, idx) in mockOrders"
+              v-for="(order, idx) in orders"
               :key="order.id"
               class="flex items-center gap-3"
             >
@@ -241,15 +253,13 @@ function copyTripName() {
                         font-medium text-neutral-600
                       "
                     >
-                      {{ order.status }}
+                      {{ getOrderStatusBadge(order.status).label }}
                     </span>
                   </div>
                   <span class="text-sm tracking-[0.7px] text-neutral-600">
-                    {{ order.orderNumber }}
-                    <span class="text-neutral-400">·</span>
                     {{ order.luggageCount }} 件
                     <span class="text-neutral-400">·</span>
-                    {{ order.pickupLocation }} → {{ order.deliveryLocation }}
+                    {{ order.pickupLocation.name }} → {{ order.deliveryLocation.name }}
                   </span>
                 </div>
                 <button
@@ -282,15 +292,25 @@ function copyTripName() {
               運送路線
             </span>
             <span class="text-sm tracking-[0.7px] text-neutral-600">
-              {{ routeSteps.length }} 個站點 · {{ trip.orderCount }} 筆訂單
+              {{ routeSteps.length }} 個站點 · {{ orderCount }} 筆訂單
             </span>
           </div>
 
+          <div
+            v-if="!routeSteps.length"
+            class="py-4 text-center text-sm text-neutral-400"
+          >
+            尚無路線資訊
+          </div>
+
           <!-- Stepper -->
-          <div class="flex flex-col">
+          <div
+            v-else
+            class="flex flex-col"
+          >
             <div
               v-for="(step, idx) in routeSteps"
-              :key="idx"
+              :key="step.stationId"
               class="flex gap-3"
             >
               <!-- 左側：圓圈 + 連接線 -->
