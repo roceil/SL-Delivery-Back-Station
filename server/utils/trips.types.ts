@@ -23,7 +23,69 @@ export interface SupabaseOrderStatus {
   status: string
 }
 
-// API 返回的型別
+// 訂單 API 回傳型別
+export interface OrderResponse {
+  id: string
+  category: string
+  lineName: string
+  phone: string
+  deliveryDate: string | null
+  returnDate: string | null
+  pickupTime: string
+  luggageCount: number
+  servicePlan: string | null
+  paymentStatus: string | null
+  status: string
+  scheduleId: string | null
+  pickupLocation: {
+    id: string
+    name: string
+    address: string
+  }
+  deliveryLocation: {
+    id: string
+    name: string
+    address: string
+  }
+  notes: string
+  createdAt: string
+}
+
+export interface OrderDetailResponse {
+  id: string
+  voucherId: string | null
+  userId: number | null
+  category: string
+  lineName: string
+  phone: string
+  deliveryDate: string | null
+  returnDate: string | null
+  pickupTime: string
+  luggageCount: number
+  servicePlan: string | null
+  paymentStatus: string | null
+  recipientName: string | null
+  recipientPhone: string | null
+  status: string
+  scheduleId: string | null
+  pickupLocation: {
+    id: string
+    name: string
+    address: string
+    area: string
+  }
+  deliveryLocation: {
+    id: string
+    name: string
+    address: string
+    area: string
+  }
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+// 行程 API 回傳型別
 export interface TripResponse {
   id: string
   name: string
@@ -68,8 +130,11 @@ export interface TripOrderResponse {
   lineName: string
   phone: string
   deliveryDate: string | null
+  returnDate: string | null
   pickupTime: string
   luggageCount: number
+  servicePlan: string | null
+  paymentStatus: string | null
   status: string
   pickupLocation: {
     id: string

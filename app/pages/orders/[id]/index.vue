@@ -1,31 +1,4 @@
 <script lang="ts" setup>
-/**
- * 以下區塊含有假資料或待補充的 DB 欄位：
- *
- * 【orders 資料表 — 待新增欄位】
- * - delivery_status   VARCHAR  配送狀態（例：'pending_delivery' | 'delivered'）
- *                              對應畫面：Header 的「待交付」Badge
- * - payment_status    VARCHAR  付款狀態（例：'paid' | 'unpaid'）
- *                              對應畫面：Header 的「已付款」Badge、費用明細的付款狀態
- * - claim_status      VARCHAR  認領分配狀態（例：'claimed_unassigned' | 'assigned'）
- *                              對應畫面：Header 的「認領未分配」Badge
- * - recipient_name    VARCHAR  領件人姓名（對應畫面：領件資訊區塊）
- * - recipient_phone   VARCHAR  領件人電話（對應畫面：領件資訊區塊）
- * - created_at        TIMESTAMP 訂單建立時間（對應畫面：訂單資訊區塊）
- * - updated_at        TIMESTAMP 最後更新時間（對應畫面：訂單資訊區塊）
- *
- * 【order_fees 子資料表 — 待新增】
- * 用於儲存費用明細，關聯至 orders.id
- * - id          SERIAL   PK
- * - order_id    FK → orders.id
- * - plan        VARCHAR  服務方案（例：'雙程套票'）
- * - type        VARCHAR  加值服務類型（例：'大型行李'，可 NULL）
- * - unit_price  NUMERIC  單價
- * - quantity    INTEGER  數量
- * - subtotal    NUMERIC  小計
- *
- * 補齊後請將各區塊的硬編碼假資料替換為 order 物件的對應欄位。
- */
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -68,22 +41,27 @@ interface FeeItem {
 
 interface Order {
   id: string
+  voucherId: string | null
+  userId: number | null
   category: string
   lineName: string
   phone: string
   deliveryDate: string | null
-  returnDate?: string | null
+  returnDate: string | null
   pickupTime: string
   luggageCount: number
+  servicePlan: string | null
+  paymentStatus: string | null
+  recipientName: string | null
+  recipientPhone: string | null
   status: string
+  scheduleId: string | null
   pickupLocation: Location
   deliveryLocation: Location
   notes: string
   fees?: FeeItem[]
-  recipientName?: string
-  recipientPhone?: string
   createdAt: string
-  updatedAt?: string
+  updatedAt: string
 }
 
 const route = useRoute()
@@ -252,10 +230,16 @@ const statusConfig = {
 }
 
 const categoryConfig = {
-  散客: { badgeType: 'blue' as const },
-  合作: { badgeType: 'sky' as const },
-  Trip: { badgeType: 'green' as const },
-  Klook: { badgeType: 'peach' as const },
+  散客: { badgeType: 'sky' as const },
+  合作: { badgeType: 'light-sky' as const },
+  Trip: { badgeType: 'peach' as const },
+  Klook: { badgeType: 'amber' as const },
+  KKday: { badgeType: 'mint' as const },
+}
+
+const paymentStatusConfig = {
+  paid: { text: '已付款', badgeType: 'green' as const },
+  unpaid: { text: '待付款', badgeType: 'orange' as const },
 }
 
 function getStatusText(status: string) {
@@ -301,8 +285,8 @@ function formatCurrency(amount: number) {
   return `NT$ ${amount.toLocaleString()}`
 }
 
-// 訂單類型切換（開發用）
-const isReseller = ref(true)
+// 是否為商家代售模式
+const isReseller = computed(() => order.value?.servicePlan === 'merchant')
 
 // 修改紀錄彈窗
 const showHistoryModal = ref(false)
@@ -320,18 +304,61 @@ interface HistoryItem {
   changes: HistoryChange[]
 }
 
-const historyItems: HistoryItem[] = [
-  {
-    id: 1,
-    datetime: '2026/1/10 · 4:27 AM',
-    changes: [{ field: '行李件數', from: '2 件', to: '3 件' }],
-  },
-  {
-    id: 2,
-    datetime: '2026/1/11 · 4:30 AM',
-    changes: [{ field: '備註', from: '無', to: '內有易碎物品，運送時請小心。' }],
-  },
-]
+const { data: rawHistory } = await useFetch<Array<{
+  id: number
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+  changed_at: string
+}>>(`/api/orders/${orderId}/history`)
+
+const historyItems = computed<HistoryItem[]>(() => {
+  if (!rawHistory.value?.length)
+    return []
+  return rawHistory.value.map(h => ({
+    id: h.id,
+    datetime: new Date(h.changed_at).toLocaleString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    changes: [{ field: h.field_name, from: h.old_value ?? '無', to: h.new_value ?? '無' }],
+  }))
+})
+
+// 費用明細
+const { data: fees } = await useFetch<Array<{
+  id: number
+  item_type: string
+  item_name: string
+  unit_price: number
+  quantity: number
+  subtotal: number
+}>>(`/api/orders/${orderId}/fees`)
+
+const totalFees = computed(() => fees.value?.reduce((sum, f) => sum + f.subtotal, 0) ?? 0)
+
+// 去回程
+const isRoundTrip = computed(() => order.value?.servicePlan === 'round_trip')
+
+// 運送步驟進度（共 6 步）
+const completedStepsCount = computed(() => {
+  const map: Record<string, number> = {
+    pending: 0,
+    confirmed: 2,
+    assigned: 2,
+    in_delivery: 4,
+    delivered: 6,
+    cancelled: 0,
+  }
+  return map[order.value?.status ?? ''] ?? 0
+})
+
+function isStepDone(n: number) {
+  return completedStepsCount.value >= n
+}
 </script>
 
 <template>
@@ -386,35 +413,24 @@ const historyItems: HistoryItem[] = [
           :label="getStatusText(order.status)"
           size="lg"
         />
-        <!-- TODO: 等 API 支援後改為動態資料 -->
         <Badge
+          v-if="order.paymentStatus"
+          :type="paymentStatusConfig[order.paymentStatus as keyof typeof paymentStatusConfig]?.badgeType ?? 'gray'"
+          :label="paymentStatusConfig[order.paymentStatus as keyof typeof paymentStatusConfig]?.text ?? order.paymentStatus"
+          size="lg"
+        />
+        <Badge
+          v-if="order.scheduleId"
           type="sky"
-          label="待交付"
+          label="已分配行程"
           size="lg"
         />
         <Badge
-          type="gray"
-          label="已付款"
+          v-if="isReseller"
+          type="light-sky"
+          label="商家代售"
           size="lg"
         />
-        <Badge
-          type="amber"
-          label="認領未分配"
-          size="lg"
-        />
-
-        <!-- DEV: 訂單類型切換 -->
-        <button
-          type="button"
-          class="
-            cursor-pointer rounded border border-neutral-300 px-2 py-1 text-xs
-            text-neutral-500
-            hover:bg-neutral-100
-          "
-          @click="isReseller = !isReseller"
-        >
-          {{ isReseller ? '商家代售' : '一般訂單' }}
-        </button>
       </div>
 
       <!-- Two-column layout -->
@@ -462,7 +478,7 @@ const historyItems: HistoryItem[] = [
                   商家
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  小琉球樂嶼海景民宿
+                  {{ order.lineName }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -520,7 +536,7 @@ const historyItems: HistoryItem[] = [
             </dl>
           </div>
 
-          <!-- 旅客資訊（商家代售 - 多位旅客） -->
+          <!-- 旅客資訊（商家代售） -->
           <div
             v-else
             class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
@@ -535,195 +551,41 @@ const historyItems: HistoryItem[] = [
                 旅客資訊
               </h2>
               <span class="text-sm tracking-wider text-neutral-500">
-                3 位旅客 · 4 件行李
+                {{ order.luggageCount }} 件行李
               </span>
             </div>
-            <div class="flex flex-col gap-3">
-              <!-- 旅客 1 -->
-              <div class="flex items-center gap-3">
-                <span
-                  class="
-                    flex size-7 shrink-0 items-center justify-center
-                    rounded-full bg-neutral-200 text-xs font-medium
-                    tracking-wider text-neutral-600
-                  "
-                >1</span>
-                <div class="flex-1 rounded-xl bg-neutral-100 p-4">
-                  <p
+            <div class="flex-1 rounded-xl bg-neutral-100 p-4">
+              <p class="mb-2 text-lg font-bold tracking-wider text-neutral-900">
+                {{ order.lineName }}
+              </p>
+              <dl class="flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <dt
                     class="
-                      mb-2 text-lg font-bold tracking-wider text-neutral-900
+                      min-w-[76px] shrink-0 text-base tracking-wider
+                      text-neutral-600
                     "
                   >
-                    王阿伯
-                  </p>
-                  <dl class="flex flex-col gap-1">
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        行李件數
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        1 件
-                      </dd>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        聯絡電話
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        0912345678
-                      </dd>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        加值服務
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        大型行李 <span class="text-sm text-neutral-400">·</span> 1 件
-                      </dd>
-                    </div>
-                  </dl>
+                    行李件數
+                  </dt>
+                  <dd class="flex-1 text-base tracking-wider text-neutral-900">
+                    {{ order.luggageCount }} 件
+                  </dd>
                 </div>
-              </div>
-
-              <!-- 旅客 2 -->
-              <div class="flex items-center gap-3">
-                <span
-                  class="
-                    flex size-7 shrink-0 items-center justify-center
-                    rounded-full bg-neutral-200 text-xs font-medium
-                    tracking-wider text-neutral-600
-                  "
-                >2</span>
-                <div class="flex-1 rounded-xl bg-neutral-100 p-4">
-                  <p
+                <div class="flex items-center gap-2">
+                  <dt
                     class="
-                      mb-2 text-lg font-bold tracking-wider text-neutral-900
+                      min-w-[76px] shrink-0 text-base tracking-wider
+                      text-neutral-600
                     "
                   >
-                    林家豪
-                  </p>
-                  <dl class="flex flex-col gap-1">
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        行李件數
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        1 件
-                      </dd>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        聯絡電話
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        0912345678
-                      </dd>
-                    </div>
-                  </dl>
+                    聯絡電話
+                  </dt>
+                  <dd class="flex-1 text-base tracking-wider text-neutral-900">
+                    {{ order.phone || '-' }}
+                  </dd>
                 </div>
-              </div>
-
-              <!-- 旅客 3 -->
-              <div class="flex items-center gap-3">
-                <span
-                  class="
-                    flex size-7 shrink-0 items-center justify-center
-                    rounded-full bg-neutral-200 text-xs font-medium
-                    tracking-wider text-neutral-600
-                  "
-                >3</span>
-                <div class="flex-1 rounded-xl bg-neutral-100 p-4">
-                  <p
-                    class="
-                      mb-2 text-lg font-bold tracking-wider text-neutral-900
-                    "
-                  >
-                    吳建國
-                  </p>
-                  <dl class="flex flex-col gap-1">
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        行李件數
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        2 件
-                      </dd>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        聯絡電話
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        0912345678
-                      </dd>
-                    </div>
-                    <div class="flex items-start gap-2">
-                      <dt
-                        class="
-                          min-w-[76px] shrink-0 text-base tracking-wider
-                          text-neutral-600
-                        "
-                      >
-                        備註
-                      </dt>
-                      <dd
-                        class="flex-1 text-base tracking-wider text-neutral-900"
-                      >
-                        內有易碎物品，運送時請小心。
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
+              </dl>
             </div>
           </div>
 
@@ -747,6 +609,14 @@ const historyItems: HistoryItem[] = [
               <dd class="text-sm tracking-wider text-neutral-900">
                 {{ formatDate(order.deliveryDate) }}
               </dd>
+              <template v-if="isRoundTrip">
+                <dt class="text-sm tracking-wider text-neutral-500">
+                  回程
+                </dt>
+                <dd class="text-sm tracking-wider text-neutral-900">
+                  {{ formatDate(order.returnDate) }}
+                </dd>
+              </template>
             </dl>
           </div>
 
@@ -891,13 +761,12 @@ const historyItems: HistoryItem[] = [
               </h2>
             </div>
             <p class="text-sm tracking-wider text-neutral-900">
-              內有易碎物品，運送時請小心。
+              {{ order.notes || '（無備註）' }}
             </p>
           </div>
 
           <!-- 運送資訊 -->
           <div class="rounded-md border border-neutral-200 bg-neutral-0 p-6">
-            <!-- Header -->
             <div class="mb-4 flex items-center gap-2">
               <Truck class="size-5 text-neutral-900" />
               <h2
@@ -907,18 +776,11 @@ const historyItems: HistoryItem[] = [
               >
                 運送狀態
               </h2>
-              <Badge
-                type="gray"
-                label="去程｜待交付"
-                size="lg"
-              />
             </div>
 
-            <!-- 去程 + 回程 -->
             <div class="flex items-stretch gap-2">
               <!-- 去程 -->
               <div class="flex-1 rounded-xl bg-neutral-100 p-3">
-                <!-- Sub-header -->
                 <div
                   class="
                     flex flex-wrap items-center justify-between gap-2 border-b
@@ -937,153 +799,86 @@ const historyItems: HistoryItem[] = [
                         tracking-wider text-neutral-600
                       "
                     >
-                      <span>碼頭門市</span>
+                      <span>{{ order.pickupLocation.name }}</span>
                       <ChevronRight class="size-4 shrink-0" />
-                      <span>小琉球樂嶼海景民宿</span>
+                      <span>{{ order.deliveryLocation.name }}</span>
                     </div>
                   </div>
-                  <a
-                    href="#"
+                  <NuxtLink
+                    v-if="order.scheduleId"
+                    :to="`/schedules/${order.scheduleId}`"
                     class="text-sm font-medium tracking-wider text-primary-300"
                   >
-                    行程編號 20260119-1
-                  </a>
+                    行程編號 {{ order.scheduleId }}
+                  </NuxtLink>
+                  <span
+                    v-else
+                    class="text-sm tracking-wider text-neutral-400"
+                  >未分配行程</span>
                 </div>
 
-                <!-- Stepper -->
                 <div class="mt-3">
-                  <!-- Step 1: 已完成 -->
-                  <div class="flex gap-2">
+                  <div
+                    v-for="(step, i) in [
+                      '訂單確認中',
+                      '訂單成立，待交付行李',
+                      '已收件',
+                      '運送中',
+                      '已送達',
+                      '已完成',
+                    ]"
+                    :key="step"
+                    class="flex gap-2"
+                  >
                     <div class="flex flex-col items-center">
                       <div
+                        :class="
+                          isStepDone(i + 1)
+                            ? 'bg-primary-300'
+                            : 'bg-neutral-200'
+                        "
                         class="
                           flex size-8 shrink-0 items-center justify-center
-                          rounded-full bg-primary-300
+                          rounded-full
                         "
                       >
-                        <Check class="size-4 text-white" />
+                        <Check
+                          v-if="isStepDone(i + 1)"
+                          class="size-4 text-white"
+                        />
                       </div>
-                      <div class="w-px flex-1 bg-primary-300"></div>
+                      <div
+                        v-if="i < 5"
+                        :class="
+                          isStepDone(i + 2)
+                            ? 'bg-primary-300'
+                            : 'bg-neutral-200'
+                        "
+                        class="w-px flex-1"
+                      ></div>
                     </div>
                     <div
-                      class="flex h-12 flex-1 items-start justify-between pt-1"
+                      :class="i < 5 ? 'h-12' : ''"
+                      class="flex flex-1 items-start pt-1"
                     >
                       <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-900
+                        :class="
+                          isStepDone(i + 1)
+                            ? 'text-neutral-900'
+                            : 'text-neutral-600'
                         "
-                      >訂單確認中</span>
-                      <div
-                        class="
-                          text-right text-xs tracking-wider text-neutral-600
-                        "
-                      >
-                        <div>2/10</div>
-                        <div>18:30</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Step 2: 已完成 -->
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div
-                        class="
-                          flex size-8 shrink-0 items-center justify-center
-                          rounded-full bg-primary-300
-                        "
-                      >
-                        <Check class="size-4 text-white" />
-                      </div>
-                      <div class="w-px flex-1 bg-primary-300"></div>
-                    </div>
-                    <div
-                      class="flex h-12 flex-1 items-start justify-between pt-1"
-                    >
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-900
-                        "
-                      >訂單成立，待交付行李</span>
-                      <div
-                        class="
-                          text-right text-xs tracking-wider text-neutral-600
-                        "
-                      >
-                        <div>2/10</div>
-                        <div>18:45</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Step 3: 待處理 -->
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
-                    </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >已收件</span>
-                    </div>
-                  </div>
-
-                  <!-- Step 4: 待處理 -->
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
-                    </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >運送中</span>
-                    </div>
-                  </div>
-
-                  <!-- Step 5: 待處理 -->
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
-                    </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >已送達</span>
-                    </div>
-                  </div>
-
-                  <!-- Step 6: 待處理（最後一步，無連接線） -->
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                    </div>
-                    <div class="flex flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >已完成</span>
+                        class="text-base font-medium tracking-wider"
+                      >{{ step }}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <!-- 回程 -->
-              <div class="flex-1 rounded-xl bg-neutral-100 p-3">
-                <!-- Sub-header -->
+              <!-- 回程（僅雙程訂單） -->
+              <div
+                v-if="isRoundTrip"
+                class="flex-1 rounded-xl bg-neutral-100 p-3"
+              >
                 <div
                   class="
                     flex flex-wrap items-center justify-between gap-2 border-b
@@ -1102,93 +897,44 @@ const historyItems: HistoryItem[] = [
                         tracking-wider text-neutral-600
                       "
                     >
-                      <span>小琉球樂嶼海景民宿</span>
+                      <span>{{ order.deliveryLocation.name }}</span>
                       <ChevronRight class="size-4 shrink-0" />
-                      <span>碼頭門市</span>
+                      <span>{{ order.pickupLocation.name }}</span>
                     </div>
                   </div>
-                  <a
-                    href="#"
-                    class="text-sm font-medium tracking-wider text-primary-300"
-                  >
-                    行程編號 20260119-1
-                  </a>
+                  <span class="text-sm tracking-wider text-neutral-400">
+                    未分配行程
+                  </span>
                 </div>
 
-                <!-- Stepper（全部待處理） -->
                 <div class="mt-3">
-                  <div class="flex gap-2">
+                  <div
+                    v-for="(step, i) in [
+                      '待交付行李',
+                      '已收件',
+                      '運送中',
+                      '已送達',
+                      '已完成',
+                    ]"
+                    :key="step"
+                    class="flex gap-2"
+                  >
                     <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
+                      <div class="size-8 shrink-0 rounded-full bg-neutral-200"></div>
+                      <div
+                        v-if="i < 4"
+                        class="w-px flex-1 bg-neutral-200"
+                      ></div>
                     </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
+                    <div
+                      :class="i < 4 ? 'h-12' : ''"
+                      class="flex flex-1 items-start pt-1"
+                    >
                       <span
                         class="
                           text-base font-medium tracking-wider text-neutral-600
                         "
-                      >待交付行李</span>
-                    </div>
-                  </div>
-
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
-                    </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >已收件</span>
-                    </div>
-                  </div>
-
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
-                    </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >運送中</span>
-                    </div>
-                  </div>
-
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                      <div class="w-px flex-1 bg-neutral-200"></div>
-                    </div>
-                    <div class="flex h-12 flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >已送達</span>
-                    </div>
-                  </div>
-
-                  <!-- 最後一步，無連接線 -->
-                  <div class="flex gap-2">
-                    <div class="flex flex-col items-center">
-                      <div class="size-8 shrink-0 rounded-full bg-neutral-200">
-                      </div>
-                    </div>
-                    <div class="flex flex-1 items-start pt-1">
-                      <span
-                        class="
-                          text-base font-medium tracking-wider text-neutral-600
-                        "
-                      >已完成</span>
+                      >{{ step }}</span>
                     </div>
                   </div>
                 </div>
@@ -1212,10 +958,10 @@ const historyItems: HistoryItem[] = [
                   費用明細
                 </h2>
               </div>
-              <!-- TODO: 等 API 支援後改為動態資料 -->
               <Badge
-                type="green"
-                label="已付款"
+                v-if="order.paymentStatus"
+                :type="paymentStatusConfig[order.paymentStatus as keyof typeof paymentStatusConfig]?.badgeType ?? 'gray'"
+                :label="paymentStatusConfig[order.paymentStatus as keyof typeof paymentStatusConfig]?.text ?? order.paymentStatus"
                 size="sm"
               />
             </div>
@@ -1265,72 +1011,52 @@ const historyItems: HistoryItem[] = [
                 </tr>
               </thead>
               <tbody>
-                <tr class="border-b border-neutral-200">
+                <tr
+                  v-if="!fees?.length"
+                  class="border-b border-neutral-200"
+                >
                   <td
+                    colspan="5"
                     class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
+                      h-[60px] px-4 text-center text-sm tracking-wider
+                      text-neutral-400
                     "
                   >
-                    雙程套票
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-500
-                    "
-                  >
-                    -
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    NT$ 250
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    2
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-right text-sm tracking-wider
-                      text-neutral-900
-                    "
-                  >
-                    NT$ 500
+                    尚無費用明細
                   </td>
                 </tr>
-                <tr class="border-b border-neutral-200">
+                <tr
+                  v-for="fee in fees"
+                  :key="fee.id"
+                  class="border-b border-neutral-200"
+                >
                   <td
                     class="
                       h-[60px] px-4 text-sm tracking-wider text-neutral-900
                     "
                   >
-                    加值服務
+                    {{ fee.item_type === 'plan' ? '方案' : '加值服務' }}
                   </td>
                   <td
                     class="
                       h-[60px] px-4 text-sm tracking-wider text-neutral-900
                     "
                   >
-                    大型行李
+                    {{ fee.item_name }}
                   </td>
                   <td
                     class="
                       h-[60px] px-4 text-sm tracking-wider text-neutral-900
                     "
                   >
-                    NT$ 50
+                    {{ formatCurrency(fee.unit_price) }}
                   </td>
                   <td
                     class="
                       h-[60px] px-4 text-sm tracking-wider text-neutral-900
                     "
                   >
-                    1
+                    {{ fee.quantity }}
                   </td>
                   <td
                     class="
@@ -1338,86 +1064,7 @@ const historyItems: HistoryItem[] = [
                       text-neutral-900
                     "
                   >
-                    NT$ 50
-                  </td>
-                </tr>
-                <tr class="border-b border-neutral-200">
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    加值服務
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    專業裝備
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    NT$ 100
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    2
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-right text-sm tracking-wider
-                      text-neutral-900
-                    "
-                  >
-                    NT$ 200
-                  </td>
-                </tr>
-                <tr class="border-b border-neutral-200">
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    加值服務
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    <div>特殊物件</div>
-                    <div class="text-xs text-neutral-500">
-                      嬰兒車
-                    </div>
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    NT$ 200
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-sm tracking-wider text-neutral-900
-                    "
-                  >
-                    1
-                  </td>
-                  <td
-                    class="
-                      h-[60px] px-4 text-right text-sm tracking-wider
-                      text-neutral-900
-                    "
-                  >
-                    NT$ 200
+                    {{ formatCurrency(fee.subtotal) }}
                   </td>
                 </tr>
               </tbody>
@@ -1438,7 +1085,7 @@ const historyItems: HistoryItem[] = [
                       text-primary-300
                     "
                   >
-                    NT$ 950
+                    {{ formatCurrency(totalFees) }}
                   </td>
                 </tr>
               </tfoot>
@@ -1466,38 +1113,10 @@ const historyItems: HistoryItem[] = [
                     text-neutral-500
                   "
                 >
-                  原有票券
-                </dt>
-                <dd class="text-sm tracking-wider text-neutral-900">
-                  50 張
-                </dd>
-              </div>
-              <div class="flex items-center gap-2">
-                <dt
-                  class="
-                    min-w-[100px] shrink-0 text-sm tracking-wider
-                    text-neutral-500
-                  "
-                >
                   本次使用
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  4 張
-                </dd>
-              </div>
-              <div class="flex items-center gap-2">
-                <dt
-                  class="
-                    min-w-[100px] shrink-0 text-sm tracking-wider
-                    text-neutral-500
-                  "
-                >
-                  票券餘額
-                </dt>
-                <dd
-                  class="text-sm font-semibold tracking-wider text-neutral-900"
-                >
-                  46 張
+                  {{ order.luggageCount }} 張
                 </dd>
               </div>
             </dl>
@@ -1505,7 +1124,7 @@ const historyItems: HistoryItem[] = [
 
           <!-- 領件資訊（一般訂單） -->
           <div
-            v-if="!isReseller"
+            v-if="!isReseller && (order.recipientName || order.recipientPhone)"
             class="rounded-md border border-neutral-200 bg-neutral-0 p-6"
           >
             <div class="mb-4 flex items-center gap-2">
@@ -1527,7 +1146,7 @@ const historyItems: HistoryItem[] = [
                   領件人
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  洗齒坦
+                  {{ order.recipientName || '-' }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1540,7 +1159,7 @@ const historyItems: HistoryItem[] = [
                   聯絡電話
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  0912345678
+                  {{ order.recipientPhone || '-' }}
                 </dd>
               </div>
             </dl>
@@ -1567,7 +1186,7 @@ const historyItems: HistoryItem[] = [
                   訂單編號
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  LSE12345670
+                  {{ order.id }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1580,7 +1199,7 @@ const historyItems: HistoryItem[] = [
                   建立時間
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  2026/2/10 12:00
+                  {{ formatDateTime(order.createdAt) }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1593,7 +1212,7 @@ const historyItems: HistoryItem[] = [
                   最後更新
                 </dt>
                 <dd class="text-sm tracking-wider text-neutral-900">
-                  2026/2/10 12:00
+                  {{ formatDateTime(order.updatedAt) }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1831,36 +1450,10 @@ const historyItems: HistoryItem[] = [
                     text-neutral-600
                   "
                 >
-                  方案
-                </dt>
-                <dd class="text-base tracking-wider text-neutral-900">
-                  雙程套票
-                </dd>
-              </div>
-              <div class="flex items-center gap-2">
-                <dt
-                  class="
-                    min-w-[100px] shrink-0 text-base tracking-wider
-                    text-neutral-600
-                  "
-                >
-                  單價
-                </dt>
-                <dd class="text-base tracking-wider text-neutral-900">
-                  NT$ 250
-                </dd>
-              </div>
-              <div class="flex items-center gap-2">
-                <dt
-                  class="
-                    min-w-[100px] shrink-0 text-base tracking-wider
-                    text-neutral-600
-                  "
-                >
                   行李數量
                 </dt>
                 <dd class="text-base tracking-wider text-neutral-900">
-                  2 件
+                  {{ order?.luggageCount }} 件
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1873,7 +1466,7 @@ const historyItems: HistoryItem[] = [
                   總計
                 </dt>
                 <dd class="text-base tracking-wider text-neutral-900">
-                  NT$ 500
+                  {{ formatCurrency(totalFees) }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1886,7 +1479,11 @@ const historyItems: HistoryItem[] = [
                   付款狀態
                 </dt>
                 <dd class="text-base tracking-wider text-neutral-900">
-                  已付款
+                  {{
+                    order?.paymentStatus
+                      ? (paymentStatusConfig[order.paymentStatus as keyof typeof paymentStatusConfig]?.text ?? order.paymentStatus)
+                      : '-'
+                  }}
                 </dd>
               </div>
             </dl>
@@ -2025,7 +1622,7 @@ const historyItems: HistoryItem[] = [
               </h2>
             </div>
             <p class="text-base tracking-wider text-neutral-900">
-              內有易碎物品，運送時請小心。
+              {{ order?.notes || '（無備註）' }}
             </p>
           </div>
 
@@ -2053,7 +1650,7 @@ const historyItems: HistoryItem[] = [
                   領件人
                 </dt>
                 <dd class="text-base tracking-wider text-neutral-900">
-                  洗齒坦
+                  {{ order?.recipientName || '-' }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -2066,7 +1663,7 @@ const historyItems: HistoryItem[] = [
                   聯絡電話
                 </dt>
                 <dd class="text-base tracking-wider text-neutral-900">
-                  0912345678
+                  {{ order?.recipientPhone || '-' }}
                 </dd>
               </div>
             </dl>

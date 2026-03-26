@@ -15,32 +15,48 @@ useHead({
   title: `代售詳情 - 物流管理系統`,
 })
 
-// TODO: 替換為實際 API 呼叫 /api/billing/pricing/merchant/:id
-const merchant = reactive({
-  id: merchantId,
-  name: '小本愛玉',
-  phone: '0912345678',
-  ticketId: 'VjfyNC5fCg7f',
-  cooperationStatus: 'active' as const,
-  enableStatus: 'active' as const,
-  ticketStatus: 'out_of_stock' as const,
-  stats: {
-    totalRevenue: 0,
-    totalTickets: 0,
-    usedTickets: 0,
-    remainingTickets: 0,
-  },
-  unitPrice: 50,
-})
+interface MerchantData {
+  id: number
+  name: string
+  phone: string
+  voucherId: string | null
+  isCollaborate: boolean
+  isActive: boolean
+  usedCounts: number
+  maxUsageCounts: number | null
+  unitPrice: number | null
+}
+
+const { data: merchantData, refresh } = await useFetch<MerchantData>(`/api/merchants/${merchantId}`)
+
+if (!merchantData.value) {
+  throw createError({ statusCode: 404, message: '找不到此商家' })
+}
+
+const merchant = merchantData as Ref<MerchantData>
 
 const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb()
 
 onMounted(() => {
-  setBreadcrumb({ label: merchant.name })
+  setBreadcrumb({ label: merchant.value.name })
 })
 
 onBeforeRouteLeave(() => {
   clearBreadcrumb()
+})
+
+const remainingTickets = computed(() => {
+  const max = merchant.value.maxUsageCounts ?? 0
+  return Math.max(0, max - merchant.value.usedCounts)
+})
+
+const ticketStatus = computed(() => {
+  const remaining = remainingTickets.value
+  if (remaining <= 0)
+    return 'out_of_stock'
+  if (remaining <= 10)
+    return 'low_stock'
+  return 'sufficient'
 })
 
 const ticketStatusConfig: Record<string, { type: 'orange' | 'red' | 'gray', label: string }> = {
@@ -61,8 +77,12 @@ const enableStatusConfig: Record<string, { type: 'green' | 'gray', label: string
 
 // ── 票券設定表單 ────────────────────────────────────────────────────────────────
 
-const unitPrice = ref(merchant.unitPrice)
+const unitPrice = ref(merchant.value.unitPrice ?? 0)
 const stockToAdd = ref(0)
+const hasCollected = ref(false)
+
+const showPaymentSummary = computed(() => unitPrice.value > 0 && stockToAdd.value > 0)
+const paymentTotal = computed(() => unitPrice.value * stockToAdd.value)
 
 function decreaseStock() {
   if (stockToAdd.value > 0)
@@ -71,6 +91,52 @@ function decreaseStock() {
 
 function increaseStock() {
   stockToAdd.value++
+}
+
+// ── 給票紀錄 ────────────────────────────────────────────────────────────────────
+
+interface TicketRecord {
+  id: number
+  batchNumber: number
+  quantity: number
+  unitPrice: number
+  total: number
+  paymentStatus: 'paid' | 'unpaid'
+  issuedAt: string
+  paidAt: string | null
+}
+
+const filterYear = ref(new Date().getFullYear())
+const filterMonth = ref(new Date().getMonth() + 1)
+
+const { data: ticketRecordsData, refresh: refreshRecords } = await useFetch<TicketRecord[]>(
+  () => `/api/merchants/${merchantId}/ticket-records?year=${filterYear.value}&month=${filterMonth.value}`,
+)
+
+const ticketRecords = computed(() => ticketRecordsData.value ?? [])
+
+const yearOptions = computed(() => {
+  const current = new Date().getFullYear()
+  return [current - 1, current, current + 1]
+})
+
+const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
+
+async function markRecordAsPaid(recordId: number) {
+  await $fetch(`/api/merchants/${merchantId}/ticket-records/${recordId}`, {
+    method: 'PATCH' as const,
+  })
+  await refreshRecords()
+}
+
+async function saveSettings() {
+  await $fetch(`/api/merchants/${merchantId}`, {
+    method: 'PATCH' as const,
+    body: { unitPrice: unitPrice.value, stockToAdd: stockToAdd.value, hasCollected: hasCollected.value },
+  })
+  stockToAdd.value = 0
+  hasCollected.value = false
+  await Promise.all([refresh(), refreshRecords()])
 }
 
 function formatCurrency(amount: number) {
@@ -96,8 +162,8 @@ function formatCurrency(amount: number) {
           {{ merchant.name }}
         </h1>
         <Badge
-          :type="ticketStatusConfig[merchant.ticketStatus]?.type ?? 'gray'"
-          :label="ticketStatusConfig[merchant.ticketStatus]?.label ?? merchant.ticketStatus"
+          :type="ticketStatusConfig[ticketStatus]?.type ?? 'gray'"
+          :label="ticketStatusConfig[ticketStatus]?.label ?? ticketStatus"
           size="lg"
         />
       </div>
@@ -123,7 +189,7 @@ function formatCurrency(amount: number) {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ formatCurrency(merchant.stats.totalRevenue) }}
+                {{ merchant.unitPrice != null ? formatCurrency(merchant.usedCounts * merchant.unitPrice) : '-' }}
               </span>
             </div>
             <div class="flex flex-col gap-1 rounded-xl bg-neutral-100 p-4">
@@ -131,7 +197,7 @@ function formatCurrency(amount: number) {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ merchant.stats.totalTickets }}
+                {{ merchant.maxUsageCounts ?? '-' }}
               </span>
             </div>
             <div class="flex flex-col gap-1 rounded-xl bg-neutral-100 p-4">
@@ -139,7 +205,7 @@ function formatCurrency(amount: number) {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ merchant.stats.usedTickets }}
+                {{ merchant.usedCounts }}
               </span>
             </div>
             <div class="flex flex-col gap-1 rounded-xl bg-neutral-100 p-4">
@@ -147,7 +213,7 @@ function formatCurrency(amount: number) {
               <span
                 class="text-base font-medium tracking-[0.8px] text-neutral-900"
               >
-                {{ merchant.stats.remainingTickets }}
+                {{ remainingTickets }}
               </span>
             </div>
           </div>
@@ -164,7 +230,7 @@ function formatCurrency(amount: number) {
                 票卷 ID
               </dt>
               <dd class="text-base tracking-[0.8px] text-neutral-900">
-                {{ merchant.ticketId }}
+                {{ merchant.voucherId ?? '-' }}
               </dd>
             </div>
             <div class="flex items-center gap-4">
@@ -178,8 +244,8 @@ function formatCurrency(amount: number) {
               </dt>
               <dd>
                 <Badge
-                  :type="cooperationStatusConfig[merchant.cooperationStatus]?.type ?? 'gray'"
-                  :label="cooperationStatusConfig[merchant.cooperationStatus]?.label ?? merchant.cooperationStatus"
+                  :type="merchant.isCollaborate ? 'green' : 'gray'"
+                  :label="merchant.isCollaborate ? '合作中' : '暫停合作'"
                   size="sm"
                 />
               </dd>
@@ -195,8 +261,8 @@ function formatCurrency(amount: number) {
               </dt>
               <dd>
                 <Badge
-                  :type="enableStatusConfig[merchant.enableStatus]?.type ?? 'gray'"
-                  :label="enableStatusConfig[merchant.enableStatus]?.label ?? merchant.enableStatus"
+                  :type="merchant.isActive ? 'green' : 'gray'"
+                  :label="merchant.isActive ? '啟用中' : '停用中'"
                   size="sm"
                 />
               </dd>
@@ -255,6 +321,68 @@ function formatCurrency(amount: number) {
             </div>
           </div>
 
+          <!-- 收款明細 -->
+          <div
+            v-if="showPaymentSummary"
+            class="w-full rounded-xl border border-neutral-200 p-4"
+          >
+            <p
+              class="mb-3 text-base font-bold tracking-[0.8px] text-neutral-900"
+            >
+              收款明細
+            </p>
+            <dl class="flex flex-col gap-2">
+              <div class="flex items-center gap-4">
+                <dt
+                  class="
+                    min-w-[60px] text-base tracking-[0.8px] text-neutral-600
+                  "
+                >
+                  單價
+                </dt>
+                <dd class="text-base tracking-[0.8px] text-neutral-900">
+                  {{ formatCurrency(unitPrice) }}
+                </dd>
+              </div>
+              <div class="flex items-center gap-4">
+                <dt
+                  class="
+                    min-w-[60px] text-base tracking-[0.8px] text-neutral-600
+                  "
+                >
+                  張數
+                </dt>
+                <dd class="text-base tracking-[0.8px] text-neutral-900">
+                  {{ stockToAdd }}
+                </dd>
+              </div>
+              <div class="flex items-center gap-4">
+                <dt
+                  class="
+                    min-w-[60px] text-base tracking-[0.8px] text-neutral-600
+                  "
+                >
+                  總計
+                </dt>
+                <dd
+                  class="
+                    text-base font-medium tracking-[0.8px] text-neutral-900
+                  "
+                >
+                  {{ formatCurrency(paymentTotal) }}
+                </dd>
+              </div>
+            </dl>
+            <label class="mt-3 flex cursor-pointer items-center gap-2">
+              <input
+                v-model="hasCollected"
+                type="checkbox"
+                class="size-4 accent-primary-400"
+              >
+              <span class="text-base tracking-[0.8px] text-neutral-900">已向商家收取款項</span>
+            </label>
+          </div>
+
           <!-- 儲存按鈕 -->
           <button
             type="button"
@@ -263,9 +391,130 @@ function formatCurrency(amount: number) {
               tracking-[0.8px] text-white
               hover:bg-primary-500
             "
+            @click="saveSettings"
           >
             儲存
           </button>
+        </div>
+
+        <!-- 給票紀錄 -->
+        <div
+          class="flex flex-col gap-4 rounded-2xl bg-white p-6"
+          style="box-shadow: 0px 4px 12px rgba(32,78,184,0.04);"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold tracking-[0.9px] text-neutral-900">給票紀錄</span>
+            <span class="text-base tracking-[0.8px] text-neutral-600">{{ ticketRecords.length }} 筆</span>
+            <div class="ml-auto flex items-center gap-2">
+              <Select v-model="filterYear">
+                <SelectTrigger class="w-[100px] bg-white text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem
+                      v-for="y in yearOptions"
+                      :key="y"
+                      :value="y"
+                    >
+                      {{ y }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Select v-model="filterMonth">
+                <SelectTrigger class="w-[80px] bg-white text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem
+                      v-for="m in monthOptions"
+                      :key="m"
+                      :value="m"
+                    >
+                      {{ m }} 月
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div
+            v-if="ticketRecords.length > 0"
+            class="overflow-hidden rounded-xl border border-neutral-200"
+          >
+            <!-- 表頭 -->
+            <div
+              class="grid grid-cols-6 border-b border-neutral-200 px-4 py-3"
+            >
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >批次</span>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >張數</span>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >總計</span>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >付款狀態</span>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >給票日</span>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
+              >操作</span>
+            </div>
+            <!-- 資料列 -->
+            <div class="divide-y divide-neutral-200">
+              <div
+                v-for="record in ticketRecords"
+                :key="record.id"
+                class="grid grid-cols-6 items-center px-4 py-3"
+              >
+                <span class="text-sm tracking-[0.7px] text-neutral-900">第 {{ record.batchNumber }} 批</span>
+                <span class="text-sm tracking-[0.7px] text-neutral-900">{{ record.quantity }} 張</span>
+                <span class="text-sm tracking-[0.7px] text-neutral-900">{{ formatCurrency(record.total) }}</span>
+                <div>
+                  <Badge
+                    :type="record.paymentStatus === 'paid' ? 'green' : 'red'"
+                    :label="record.paymentStatus === 'paid' ? '已付款' : '未付款'"
+                    size="sm"
+                  />
+                </div>
+                <span class="text-sm tracking-[0.7px] text-neutral-900">{{ record.issuedAt }}</span>
+                <div>
+                  <button
+                    v-if="record.paymentStatus === 'unpaid'"
+                    type="button"
+                    class="
+                      text-sm font-medium tracking-[0.7px] text-primary-400
+                      hover:text-primary-500
+                    "
+                    @click="markRecordAsPaid(record.id)"
+                  >
+                    標示為已付款
+                  </button>
+                  <span
+                    v-else
+                    class="text-sm text-neutral-400"
+                  >-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-else
+            class="
+              flex items-center justify-center rounded-xl bg-neutral-100 py-8
+            "
+          >
+            <span class="text-sm tracking-[0.7px] text-neutral-600">尚無給票紀錄</span>
+          </div>
         </div>
       </div>
 
@@ -286,7 +535,7 @@ function formatCurrency(amount: number) {
             variant="outline"
             class="w-full justify-center gap-2"
           >
-            <a :href="`tel:${merchant.phone}`">
+            <a :href="merchant.phone ? `tel:${merchant.phone}` : undefined">
               <Phone class="size-5" />
               聯絡商家
             </a>

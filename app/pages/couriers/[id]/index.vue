@@ -1,22 +1,4 @@
 <script lang="ts" setup>
-/**
- * 以下為假資料欄位，尚未對應至資料庫，待後續補充 DB 欄位與 API：
- *
- * - courierType (夥伴類型)：
- *     DB 欄位 `courier_type` VARCHAR，值為 'long_term' | 'short_term'
- *     目前以假資料 'long_term' 顯示，補齊後請從 API 回傳值取用
- *
- * - deliveryRecords (配送紀錄)：
- *     待串接 GET `/api/couriers/${id}/delivery-records`
- *     目前以 mockDeliveryRecords 假資料顯示
- *
- * - salaryRecords (薪資明細，僅短期支援夥伴)：
- *     待串接 GET `/api/couriers/${id}/salary-records`
- *     需補充的 DB 欄位：
- *       - `delivery_rate` NUMERIC：每筆紀錄的運送單價（目前從夥伴層級 delivery_rate 假設）
- *       - `salary_status` VARCHAR：值為 'paid' | 'unpaid'，每筆薪資結算狀態
- *     目前以 mockSalaryRecords 假資料顯示
- */
 import type { DateValue } from '@internationalized/date'
 import { DateFormatter, getLocalTimeZone, parseDate } from '@internationalized/date'
 import { ArrowLeft, CalendarIcon, CircleDollarSign, Package, Pencil, Phone, Trash2, UserRound } from 'lucide-vue-next'
@@ -39,7 +21,6 @@ interface Courier {
   createdAt: string
   updatedAt: string
   courierType?: string
-  deliveryRate?: number
 }
 
 interface DeliveryRecord {
@@ -51,14 +32,11 @@ interface DeliveryRecord {
 }
 
 interface SalaryRecord {
-  id: number
-  deliveryDate: string
-  // 假資料欄位，待 DB 補齊：delivery_rate NUMERIC
-  deliveryRate: number
-  luggageCount: number
+  period: string
+  deliveryCount: number
   amount: number
-  // 假資料欄位，待 DB 補齊：salary_status VARCHAR ('paid' | 'unpaid')
-  salaryStatus: 'paid' | 'unpaid'
+  status: 'paid' | 'unpaid'
+  paidAt: string | null
 }
 
 useHead({
@@ -87,16 +65,11 @@ onBeforeRouteLeave(() => {
   clearBreadcrumb()
 })
 
-// 假資料（待串接配送紀錄 API）
-const mockDeliveryRecords: DeliveryRecord[] = [
-  { id: 1, deliveryDate: '2026-01-19', tripNumber: '20260119-1', orderCount: 2, luggageCount: 4 },
-  { id: 2, deliveryDate: '2026-01-19', tripNumber: '20260119-2', orderCount: 2, luggageCount: 4 },
-  { id: 3, deliveryDate: '2026-01-19', tripNumber: '20260119-3', orderCount: 2, luggageCount: 4 },
-  { id: 4, deliveryDate: '2026-01-19', tripNumber: '20260119-4', orderCount: 2, luggageCount: 4 },
-  { id: 5, deliveryDate: '2026-01-19', tripNumber: '20260119-5', orderCount: 2, luggageCount: 4 },
-]
+const { data: deliveryRecordsData } = await useFetch<DeliveryRecord[]>(`/api/couriers/${id}/delivery-records`)
+const deliveryRecords = computed(() => deliveryRecordsData.value ?? [])
 
-const deliveryRecords = ref<DeliveryRecord[]>(mockDeliveryRecords)
+const { data: salaryRecordsData, refresh: refreshSalaryRecords } = await useFetch<SalaryRecord[]>(`/api/couriers/${id}/salary-records`)
+const salaryRecords = computed(() => salaryRecordsData.value ?? [])
 
 const dfDate = new DateFormatter('zh-TW', { dateStyle: 'medium' })
 
@@ -113,42 +86,28 @@ const filteredDeliveryRecords = computed(() => {
   return deliveryRecords.value.filter(r => r.deliveryDate === filterDateStr.value)
 })
 
-// 假資料（待串接薪資明細 API）
-const mockSalaryRecords: SalaryRecord[] = [
-  { id: 1, deliveryDate: '2026-01-19', deliveryRate: 100, luggageCount: 20, amount: 2000, salaryStatus: 'unpaid' },
-  { id: 2, deliveryDate: '2026-01-18', deliveryRate: 100, luggageCount: 4, amount: 400, salaryStatus: 'unpaid' },
-  { id: 3, deliveryDate: '2025-12-19', deliveryRate: 80, luggageCount: 10, amount: 800, salaryStatus: 'unpaid' },
-]
-
-const salaryRecords = ref<SalaryRecord[]>(mockSalaryRecords)
-
 // 薪資明細篩選
-const salaryFilterDateStr = ref('')
-const salaryFilterDate = computed<DateValue | undefined>({
-  get: () => salaryFilterDateStr.value ? parseDate(salaryFilterDateStr.value) : undefined,
-  set: val => salaryFilterDateStr.value = val ? val.toString() : '',
-})
-
 const salaryFilterStatus = ref<'paid' | 'unpaid' | ''>('')
 
 const filteredSalaryRecords = computed(() => {
   return salaryRecords.value.filter((r) => {
-    if (salaryFilterDateStr.value && r.deliveryDate !== salaryFilterDateStr.value)
-      return false
-    if (salaryFilterStatus.value && r.salaryStatus !== salaryFilterStatus.value)
+    if (salaryFilterStatus.value && r.status !== salaryFilterStatus.value)
       return false
     return true
   })
 })
 
 const overallSalaryStatus = computed(() => {
-  const hasUnpaid = salaryRecords.value.some(r => r.salaryStatus === 'unpaid')
+  const hasUnpaid = salaryRecords.value.some(r => r.status === 'unpaid')
   return hasUnpaid ? 'unpaid' : 'paid'
 })
 
-function markAsPaid(record: SalaryRecord) {
-  record.salaryStatus = 'paid'
-  // TODO: 串接 PATCH /api/couriers/${id}/salary-records/${record.id}
+async function markAsPaid(record: SalaryRecord) {
+  await $fetch(`/api/couriers/${id}/salary-records/mark-paid`, {
+    method: 'PATCH',
+    body: { period: record.period },
+  })
+  await refreshSalaryRecords()
 }
 
 const df = new Intl.DateTimeFormat('zh-TW', { dateStyle: 'medium' })
@@ -179,15 +138,12 @@ const availabilityBadge = computed<BadgeInfo>(() => {
     : { type: 'gray', label: '無法執行任務' }
 })
 
-// 假資料：courierType 待 DB 補齊後從 courier.value.courierType 取值
-const mockCourierType = courier.value.courierType ?? 'long_term'
-
-const courierTypeBadge = computed<BadgeInfo>(() => {
+const courierTypeBadge = computed<BadgeInfo | null>(() => {
   const typeMap: Record<string, BadgeInfo> = {
     long_term: { type: 'blue', label: '長期合作' },
     short_term: { type: 'orange', label: '短期支援' },
   }
-  return typeMap[mockCourierType] ?? { type: 'blue', label: '長期合作' }
+  return courier.value.courierType ? (typeMap[courier.value.courierType] ?? null) : null
 })
 
 function goToEdit() {
@@ -200,8 +156,12 @@ function callCourier() {
   }
 }
 
-function deleteCourier() {
-  // TODO: 串接刪除 API
+async function deleteCourier() {
+  if (!confirm(`確定要刪除夥伴「${courier.value.name}」嗎？此操作無法復原。`))
+    return
+
+  await $fetch(`/api/couriers/${id}`)
+  router.push('/couriers')
 }
 </script>
 
@@ -255,6 +215,7 @@ function deleteCourier() {
               夥伴資訊
             </h2>
             <Badge
+              v-if="courierTypeBadge"
               :type="courierTypeBadge.type"
               :label="courierTypeBadge.label"
               size="lg"
@@ -339,33 +300,6 @@ function deleteCourier() {
             </div>
             <!-- 薪資明細篩選 -->
             <div class="flex items-center gap-2">
-              <!-- 日期篩選 -->
-              <Popover>
-                <PopoverTrigger as-child>
-                  <button
-                    type="button"
-                    :class="cn(
-                      `
-                        flex items-center gap-2 rounded-xs border
-                        border-neutral-200 px-3 py-2 text-base outline-none
-                        hover:border-neutral-400
-                      `,
-                      salaryFilterDate ? 'text-neutral-900' : 'text-neutral-400',
-                    )"
-                  >
-                    {{ salaryFilterDate ? dfDate.format(salaryFilterDate.toDate(getLocalTimeZone())) : '請選擇日期' }}
-                    <CalendarIcon class="size-4 shrink-0 text-neutral-400" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent class="w-auto p-0">
-                  <Calendar
-                    v-model="salaryFilterDate"
-                    :initial-focus="true"
-                    layout="month-and-year"
-                  />
-                </PopoverContent>
-              </Popover>
-
               <!-- 薪資結算狀態篩選 -->
               <Select v-model="salaryFilterStatus">
                 <SelectTrigger class="w-[152px] bg-white text-base">
@@ -392,17 +326,14 @@ function deleteCourier() {
           >
             <!-- 表頭 -->
             <div
-              class="grid grid-cols-5 border-b border-neutral-200 px-4 py-3"
+              class="grid grid-cols-4 border-b border-neutral-200 px-4 py-3"
             >
               <span
                 class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-              >運送日期</span>
+              >結算週期</span>
               <span
                 class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-              >運送單價</span>
-              <span
-                class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-              >行李數量</span>
+              >配送次數</span>
               <span
                 class="text-sm font-medium tracking-[0.7px] text-neutral-600"
               >應付薪資</span>
@@ -415,24 +346,21 @@ function deleteCourier() {
             <div class="divide-y divide-neutral-200">
               <div
                 v-for="record in filteredSalaryRecords"
-                :key="record.id"
-                class="grid min-h-[60px] grid-cols-5 items-center px-4 py-3"
+                :key="record.period"
+                class="grid min-h-[60px] grid-cols-4 items-center px-4 py-3"
               >
                 <span class="text-sm tracking-[0.7px] text-neutral-900">
-                  {{ dfDate.format(parseDate(record.deliveryDate).toDate(getLocalTimeZone())) }}
+                  {{ new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'long' }).format(new Date(`${record.period}-01`)) }}
                 </span>
                 <span class="text-sm tracking-[0.7px] text-neutral-900">
-                  NT$ {{ record.deliveryRate }}
-                </span>
-                <span class="text-sm tracking-[0.7px] text-neutral-900">
-                  {{ record.luggageCount }} 件
+                  {{ record.deliveryCount }} 次
                 </span>
                 <span class="text-sm tracking-[0.7px] text-neutral-900">
                   NT$ {{ record.amount.toLocaleString() }}
                 </span>
                 <div>
                   <button
-                    v-if="record.salaryStatus === 'unpaid'"
+                    v-if="record.status === 'unpaid'"
                     type="button"
                     class="
                       text-sm font-medium tracking-[0.8px] text-primary-400

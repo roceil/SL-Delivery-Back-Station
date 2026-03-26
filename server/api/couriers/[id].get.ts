@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
       is_available,
       total_deliveries,
       hire_date,
+      courier_type,
       created_at,
       updated_at,
       couriers_status (
@@ -58,6 +59,7 @@ export default defineEventHandler(async (event) => {
     isAvailable: data.is_available,
     totalDeliveries: data.total_deliveries,
     hireDate: data.hire_date,
+    courierType: data.courier_type,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   }

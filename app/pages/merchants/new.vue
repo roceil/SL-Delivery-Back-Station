@@ -26,7 +26,7 @@ const form = ref({
   email: '',
   address: '',
   type: stationTypes.value?.[0]?.id ?? 1,
-  area: 'A',
+  area: '',
   isActive: false,
   isCollaborate: false,
   latitude: '',

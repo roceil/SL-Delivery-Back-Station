@@ -1,12 +1,4 @@
 <script lang="ts" setup>
-/**
- * 以下為假資料欄位，尚未對應至資料庫，待後續補充 DB 欄位與 API：
- *
- * - courierType (夥伴類型)：DB 欄位 `courier_type` VARCHAR，值為 'long_term' | 'short_term'
- * - salaryStatus (薪資結算)：DB 欄位 `salary_status` VARCHAR，值為 'paid' | 'unpaid'
- *
- * 補齊後請將 mockCouriers 假資料替換為真實 API 資料（useFetch('/api/couriers')）
- */
 import { ChevronRight, Users } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 
@@ -23,67 +15,15 @@ interface Courier {
   hireDate: string
   createdAt: string
   updatedAt: string
-  courierType?: 'long_term' | 'short_term'
-  salaryStatus?: 'paid' | 'unpaid' | null
+  courierType: 'long_term' | 'short_term' | null
+  salaryStatus: 'paid' | 'unpaid' | null
 }
 
 useHead({
   title: '夥伴總覽 - 物流管理系統',
 })
 
-// 假資料（暫用，待 API 補上 courierType / salaryStatus 欄位後替換）
-const mockCouriers: Courier[] = [
-  {
-    id: 1,
-    employeeNumber: 'C001',
-    name: '林呈昕',
-    phone: '0912345678',
-    statusId: 1,
-    status: 'hire',
-    statusExplanation: '',
-    isAvailable: true,
-    totalDeliveries: 2,
-    hireDate: '2024-01-01',
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-01',
-    courierType: 'short_term',
-    salaryStatus: 'paid',
-  },
-  {
-    id: 2,
-    employeeNumber: 'C002',
-    name: '朱姓碼農',
-    phone: '0912345678',
-    statusId: 1,
-    status: 'hire',
-    statusExplanation: '',
-    isAvailable: true,
-    totalDeliveries: 2,
-    hireDate: '2024-01-01',
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-01',
-    courierType: 'long_term',
-    salaryStatus: null,
-  },
-  {
-    id: 3,
-    employeeNumber: 'C003',
-    name: '長樂公主',
-    phone: '0912345678',
-    statusId: 2,
-    status: 'fire',
-    statusExplanation: '',
-    isAvailable: false,
-    totalDeliveries: 2,
-    hireDate: '2023-06-01',
-    createdAt: '2023-06-01',
-    updatedAt: '2024-01-01',
-    courierType: 'long_term',
-    salaryStatus: null,
-  },
-]
-
-const couriers = ref<Courier[]>(mockCouriers)
+const { data: couriers } = await useFetch<Courier[]>('/api/couriers')
 
 const router = useRouter()
 
@@ -97,11 +37,11 @@ const filters = reactive({
 const hasActiveFilters = computed(() => Object.values(filters).some(v => !!v))
 
 const totalDeliveries = computed(() =>
-  couriers.value.reduce((sum, c) => sum + (c.totalDeliveries || 0), 0),
+  (couriers.value ?? []).reduce((sum, c) => sum + (c.totalDeliveries || 0), 0),
 )
 
 const filteredCouriers = computed(() => {
-  return couriers.value.filter((courier) => {
+  return (couriers.value ?? []).filter((courier) => {
     if (filters.keyword) {
       const kw = filters.keyword.toLowerCase()
       const matchName = courier.name?.toLowerCase().includes(kw)
@@ -341,9 +281,9 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
               <!-- 類型 -->
               <div class="">
                 <Badge
-                  v-if="getCourierTypeBadge(courier.courierType)"
-                  :type="getCourierTypeBadge(courier.courierType)!.type"
-                  :label="getCourierTypeBadge(courier.courierType)!.label"
+                  v-if="getCourierTypeBadge(courier.courierType ?? undefined)"
+                  :type="getCourierTypeBadge(courier.courierType ?? undefined)!.type"
+                  :label="getCourierTypeBadge(courier.courierType ?? undefined)!.label"
                   size="lg"
                 />
                 <span

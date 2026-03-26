@@ -3,130 +3,118 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
 
   if (!id) {
-    throw createError({
-      statusCode: 400,
-      message: '缺少訂單 ID',
-    })
+    throw createError({ statusCode: 400, message: '缺少訂單 ID' })
   }
 
-  // 查詢單一訂單
   const { data: orderData, error } = await supabase
     .from('orders')
     .select(`
       id,
+      order_number,
       platform_id,
       platform_type,
       voucher_id,
+      user_id,
+      schedule_id,
       status,
+      service_plan,
+      payment_status,
+      luggage_count,
+      departure_date,
+      return_date,
+      recipient_name,
+      recipient_phone,
       notes,
       created_at,
       updated_at,
-      start_point:stations!orders_start_point_fkey (
-        id,
-        name,
-        address,
-        area
-      ),
-      end_point:stations!orders_end_point_fkey (
-        id,
-        name,
-        address,
-        area
-      ),
-      order_status:orders_status (
-        status
-      )
+      start_point:stations!orders_start_point_fkey (id, name, address, area),
+      end_point:stations!orders_end_point_fkey (id, name, address, area),
+      order_status:orders_status (status)
     `)
-    .eq('id', id)
+    .eq('order_number', id)
     .single()
 
   if (error || !orderData) {
-    throw createError({
-      statusCode: 404,
-      message: '找不到此訂單',
-    })
+    throw createError({ statusCode: 404, message: '找不到此訂單' })
   }
 
   let orderCategory = '未知'
   let lineName = '未提供'
   let phone = '未提供'
-  let deliveryDate = null
   let pickupTime = '-'
-  let luggageCount = 0
 
-  // 根據 platform_type 查詢對應的訂單明細
   if (orderData.platform_type === 4) {
-    // 散客訂單
     orderCategory = '散客'
     const { data: normalOrder, error: normalError } = await supabase
       .from('normal_orders')
-      .select('departure_date, receive_time, quantity, contacts')
+      .select('receive_time, contacts')
       .eq('id', orderData.platform_id)
       .single()
 
     if (normalError || !normalOrder) {
-      throw createError({
-        statusCode: 404,
-        message: '找不到訂單明細',
-      })
+      throw createError({ statusCode: 404, message: '找不到訂單明細' })
     }
 
-    const contacts = normalOrder.contacts as { name?: string, phone?: string, lineId?: string } || {}
+    const contacts = normalOrder.contacts as { name?: string, phone?: string } || {}
     lineName = contacts.name || '未提供'
     phone = contacts.phone || '未提供'
-    deliveryDate = normalOrder.departure_date
     pickupTime = normalOrder.receive_time || '-'
-    luggageCount = normalOrder.quantity || 0
   }
   else if (orderData.platform_type === 3) {
-    // 同業訂單
     const { data: netOrder, error: netError } = await supabase
       .from('net_orders')
-      .select('platform_type, departure_date, receive_time, quantity, contacts')
+      .select('platform_type, receive_time, contacts')
       .eq('id', orderData.platform_id)
       .single()
 
     if (netError || !netOrder) {
-      throw createError({
-        statusCode: 404,
-        message: '找不到訂單明細',
-      })
+      throw createError({ statusCode: 404, message: '找不到訂單明細' })
     }
 
-    // 判斷類別
-    if (netOrder.platform_type === 1) {
-      orderCategory = 'Trip'
-    }
-    else if (netOrder.platform_type === 2) {
-      orderCategory = 'Klook'
-    }
-    else {
-      orderCategory = '合作'
-    }
-
-    const contacts = netOrder.contacts as { name?: string, phone?: string, lineId?: string } || {}
+    orderCategory = netOrder.platform_type === 1 ? 'Trip' : netOrder.platform_type === 2 ? 'Klook' : '合作'
+    const contacts = netOrder.contacts as { name?: string, phone?: string } || {}
     lineName = contacts.name || '未提供'
     phone = contacts.phone || '未提供'
-    deliveryDate = netOrder.departure_date
     pickupTime = netOrder.receive_time || '-'
-    luggageCount = netOrder.quantity || 0
+  }
+  else if (orderData.platform_type === 5) {
+    orderCategory = 'KKday'
+    const { data: kkdayOrder, error: kkdayError } = await supabase
+      .from('kkday_orders')
+      .select('contacts')
+      .eq('id', orderData.platform_id)
+      .single()
+
+    if (kkdayError || !kkdayOrder) {
+      throw createError({ statusCode: 404, message: '找不到 KKday 訂單明細' })
+    }
+
+    const contacts = kkdayOrder.contacts as { name?: string, phone?: string } || {}
+    lineName = contacts.name || '未提供'
+    phone = contacts.phone || '未提供'
   }
 
-  // 組合資料
   const orderStatus = Array.isArray(orderData.order_status) ? orderData.order_status[0] : orderData.order_status
   const startPoint = Array.isArray(orderData.start_point) ? orderData.start_point[0] : orderData.start_point
   const endPoint = Array.isArray(orderData.end_point) ? orderData.end_point[0] : orderData.end_point
 
-  const order = {
-    id: orderData.id.toString(),
+  return {
+    id: orderData.order_number ?? orderData.id.toString(),
     voucherId: orderData.voucher_id,
+    userId: orderData.user_id,
     category: orderCategory,
     lineName,
     phone,
-    deliveryDate,
+    deliveryDate: orderData.departure_date,
+    returnDate: orderData.return_date,
     pickupTime,
-    luggageCount,
+    luggageCount: orderData.luggage_count || 0,
+    servicePlan: orderData.service_plan,
+    paymentStatus: orderData.payment_status,
+    recipientName: orderData.recipient_name,
+    recipientPhone: orderData.recipient_phone,
     status: orderStatus?.status || 'pending',
+    scheduleId: orderData.schedule_id?.toString() || null,
     pickupLocation: {
       id: startPoint?.id?.toString() || '',
       name: startPoint?.name || '',
@@ -143,6 +131,4 @@ export default defineEventHandler(async (event) => {
     createdAt: orderData.created_at,
     updatedAt: orderData.updated_at,
   }
-
-  return order
 })

@@ -42,6 +42,7 @@ export default defineEventHandler(async (event) => {
       phone: body.phone || null,
       email: body.email || null,
       address: body.address || null,
+      area: body.area || null,
       types: body.type || null,
       is_active: body.isActive !== undefined ? body.isActive : true,
       is_collaborate: body.isCollaborate !== undefined ? body.isCollaborate : false,

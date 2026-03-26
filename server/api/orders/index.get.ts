@@ -1,33 +1,27 @@
 export default defineEventHandler(async (event) => {
   const supabase = useServiceRoleClient()
-
-  // 從查詢參數獲取日期
   const query = getQuery(event)
   const filterDate = query.date as string | undefined
 
-  // 查詢所有訂單資料
   const { data: ordersData, error } = await supabase
     .from('orders')
     .select(`
       id,
+      order_number,
       platform_id,
       platform_type,
+      schedule_id,
       status,
+      service_plan,
+      payment_status,
+      luggage_count,
+      departure_date,
+      return_date,
       notes,
       created_at,
-      start_point:stations!orders_start_point_fkey (
-        id,
-        name,
-        address
-      ),
-      end_point:stations!orders_end_point_fkey (
-        id,
-        name,
-        address
-      ),
-      order_status:orders_status (
-        status
-      )
+      start_point:stations!orders_start_point_fkey (id, name, address),
+      end_point:stations!orders_end_point_fkey (id, name, address),
+      order_status:orders_status (status)
     `)
     .order('created_at', { ascending: false })
 
@@ -45,70 +39,54 @@ export default defineEventHandler(async (event) => {
   // 分類訂單 ID
   const normalOrderIds: string[] = []
   const netOrderIds: string[] = []
+  const kkdayOrderIds: string[] = []
 
   ordersData.forEach((order) => {
-    if (order.platform_type === 4) {
-      // Normal
-      normalOrderIds.push(order.platform_id)
-    }
-    else if (order.platform_type === 3) {
-      // Net
-      netOrderIds.push(order.platform_id)
-    }
+    if (order.platform_type === 4) normalOrderIds.push(order.platform_id)
+    else if (order.platform_type === 3) netOrderIds.push(order.platform_id)
+    else if (order.platform_type === 5) kkdayOrderIds.push(order.platform_id)
   })
 
-  // 查詢 normal_orders
+  // 查詢 normal_orders（僅需 contacts, receive_time）
   const normalOrdersMap = new Map()
   if (normalOrderIds.length > 0) {
-    let normalOrdersQuery = supabase
+    let q = supabase
       .from('normal_orders')
-      .select('id, departure_date, receive_time, quantity, contacts')
+      .select('id, receive_time, contacts')
       .in('id', normalOrderIds)
-
-    // 如果有提供日期，則加上日期篩選
-    if (filterDate) {
-      normalOrdersQuery = normalOrdersQuery.eq('departure_date', filterDate)
-    }
-
-    const { data: normalOrdersData, error: normalError } = await normalOrdersQuery
-
-    if (normalError) {
-      throw createError({
-        statusCode: 500,
-        message: `查詢散客訂單失敗: ${normalError.message}`,
-      })
-    }
-
-    normalOrdersData?.forEach((no) => {
-      normalOrdersMap.set(no.id.toString(), no)
-    })
+    if (filterDate)
+      q = q.eq('departure_date', filterDate)
+    const { data, error: e } = await q
+    if (e) throw createError({ statusCode: 500, message: `查詢散客訂單失敗: ${e.message}` })
+    data?.forEach(no => normalOrdersMap.set(no.id.toString(), no))
   }
 
-  // 查詢 net_orders
+  // 查詢 net_orders（需 platform_type 判斷類別）
   const netOrdersMap = new Map()
   if (netOrderIds.length > 0) {
-    let netOrdersQuery = supabase
+    let q = supabase
       .from('net_orders')
-      .select('id, platform_type, departure_date, receive_time, quantity, contacts')
+      .select('id, platform_type, receive_time, contacts')
       .in('id', netOrderIds)
+    if (filterDate)
+      q = q.eq('departure_date', filterDate)
+    const { data, error: e } = await q
+    if (e) throw createError({ statusCode: 500, message: `查詢同業訂單失敗: ${e.message}` })
+    data?.forEach(no => netOrdersMap.set(no.id.toString(), no))
+  }
 
-    // 如果有提供日期，則加上日期篩選
-    if (filterDate) {
-      netOrdersQuery = netOrdersQuery.eq('departure_date', filterDate)
-    }
-
-    const { data: netOrdersData, error: netError } = await netOrdersQuery
-
-    if (netError) {
-      throw createError({
-        statusCode: 500,
-        message: `查詢同業訂單失敗: ${netError.message}`,
-      })
-    }
-
-    netOrdersData?.forEach((no) => {
-      netOrdersMap.set(no.id.toString(), no)
-    })
+  // 查詢 kkday_orders
+  const kkdayOrdersMap = new Map()
+  if (kkdayOrderIds.length > 0) {
+    let q = supabase
+      .from('kkday_orders')
+      .select('id, contacts')
+      .in('id', kkdayOrderIds)
+    if (filterDate)
+      q = q.eq('departure_date', filterDate)
+    const { data, error: e } = await q
+    if (e) throw createError({ statusCode: 500, message: `查詢 KKday 訂單失敗: ${e.message}` })
+    data?.forEach(ko => kkdayOrdersMap.set(ko.id.toString(), ko))
   }
 
   // 組合資料
@@ -116,51 +94,33 @@ export default defineEventHandler(async (event) => {
     let orderCategory = '未知'
     let lineName = '未提供'
     let phone = '未提供'
-    let deliveryDate = null
     let pickupTime = '-'
-    let luggageCount = 0
 
     if (order.platform_type === 4) {
-      // 散客訂單
       orderCategory = '散客'
       const normalOrder = normalOrdersMap.get(order.platform_id)
-
-      if (!normalOrder) {
-        return null
-      }
-
-      const contacts = normalOrder.contacts as { name?: string, phone?: string, lineId?: string } || {}
+      if (!normalOrder) return null
+      const contacts = normalOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
-      deliveryDate = normalOrder.departure_date
       pickupTime = normalOrder.receive_time || '-'
-      luggageCount = normalOrder.quantity || 0
     }
     else if (order.platform_type === 3) {
-      // 同業訂單（Net）
       const netOrder = netOrdersMap.get(order.platform_id)
-
-      if (!netOrder) {
-        return null
-      }
-
-      // 根據 net_orders.platform_type 判斷類別
-      if (netOrder.platform_type === 1) {
-        orderCategory = 'Trip'
-      }
-      else if (netOrder.platform_type === 2) {
-        orderCategory = 'Klook'
-      }
-      else {
-        orderCategory = '合作'
-      }
-
-      const contacts = netOrder.contacts as { name?: string, phone?: string, lineId?: string } || {}
+      if (!netOrder) return null
+      orderCategory = netOrder.platform_type === 1 ? 'Trip' : netOrder.platform_type === 2 ? 'Klook' : '合作'
+      const contacts = netOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
-      deliveryDate = netOrder.departure_date
       pickupTime = netOrder.receive_time || '-'
-      luggageCount = netOrder.quantity || 0
+    }
+    else if (order.platform_type === 5) {
+      orderCategory = 'KKday'
+      const kkdayOrder = kkdayOrdersMap.get(order.platform_id)
+      if (!kkdayOrder) return null
+      const contacts = kkdayOrder.contacts as { name?: string, phone?: string } || {}
+      lineName = contacts.name || '未提供'
+      phone = contacts.phone || '未提供'
     }
 
     const orderStatus = Array.isArray(order.order_status) ? order.order_status[0] : order.order_status
@@ -168,14 +128,18 @@ export default defineEventHandler(async (event) => {
     const endPoint = Array.isArray(order.end_point) ? order.end_point[0] : order.end_point
 
     return {
-      id: order.id.toString(),
+      id: order.order_number ?? order.id.toString(),
       category: orderCategory,
       lineName,
       phone,
-      deliveryDate,
+      deliveryDate: order.departure_date,
+      returnDate: order.return_date,
       pickupTime,
-      luggageCount,
+      luggageCount: order.luggage_count || 0,
+      servicePlan: order.service_plan,
+      paymentStatus: order.payment_status,
       status: orderStatus?.status || 'pending',
+      scheduleId: order.schedule_id?.toString() || null,
       pickupLocation: {
         id: startPoint?.id?.toString() || '',
         name: startPoint?.name || '',

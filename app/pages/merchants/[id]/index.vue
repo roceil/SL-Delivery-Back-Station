@@ -318,7 +318,7 @@ function openGoogleMaps(address: string) {
             </div>
             <div class="flex items-center gap-4">
               <span class="min-w-[100px] text-neutral-600">商家區域</span>
-              <span class="text-neutral-900">{{ merchant.area ? `區域 ${merchant.area}` : '-' }}</span>
+              <span class="text-neutral-900">{{ merchant.area ? `${merchant.area}` : '-' }}</span>
             </div>
           </div>
         </div>

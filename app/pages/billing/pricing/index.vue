@@ -52,73 +52,60 @@ function resetAddonFilters() {
 
 // ── 資料 ───────────────────────────────────────────────────────────────────────
 
+interface Merchant {
+  id: number
+  name: string
+  typeName: string
+  unitPrice: number | null
+  usedCounts: number
+  maxUsageCounts: number | null
+  paymentStatus: 'paid' | 'unpaid' | null
+  isCollaborate: boolean
+}
+
+type TicketStatus = 'out_of_stock' | 'low_stock' | 'sufficient'
+
 interface PricingItem {
   id: string
-  type: '餐廳' | '民宿'
+  type: string
   name: string
-  unitPrice: number
-  remainingTickets: number
-  ticketStatus: 'out_of_stock' | 'low_stock' | 'sufficient'
-  paymentStatus: 'paid' | 'unpaid'
+  unitPrice: number | null
+  remainingTickets: number | null
+  ticketStatus: TicketStatus | null
+  paymentStatus: 'paid' | 'unpaid' | null
   cooperationStatus: 'active' | 'suspended'
 }
 
-// TODO: 替換為實際 API 呼叫 /api/billing/pricing
-const pricingItems: PricingItem[] = [
-  {
-    id: '1',
-    type: '餐廳',
-    name: '小琉球美食館',
-    unitPrice: 250,
-    remainingTickets: 0,
-    ticketStatus: 'out_of_stock',
-    paymentStatus: 'paid',
-    cooperationStatus: 'active',
-  },
-  {
-    id: '2',
-    type: '民宿',
-    name: '樂嶼海景民宿',
-    unitPrice: 800,
-    remainingTickets: 12,
-    ticketStatus: 'low_stock',
-    paymentStatus: 'unpaid',
-    cooperationStatus: 'active',
-  },
-  {
-    id: '3',
-    type: '餐廳',
-    name: '碼頭海鮮餐廳',
-    unitPrice: 350,
-    remainingTickets: 58,
-    ticketStatus: 'sufficient',
-    paymentStatus: 'paid',
-    cooperationStatus: 'suspended',
-  },
-  {
-    id: '4',
-    type: '民宿',
-    name: '珊瑚礁度假村',
-    unitPrice: 1200,
-    remainingTickets: 30,
-    ticketStatus: 'sufficient',
-    paymentStatus: 'paid',
-    cooperationStatus: 'active',
-  },
-  {
-    id: '5',
-    type: '餐廳',
-    name: '漁港風味小館',
-    unitPrice: 180,
-    remainingTickets: 5,
-    ticketStatus: 'low_stock',
-    paymentStatus: 'unpaid',
-    cooperationStatus: 'active',
-  },
-]
+const { data: merchantsData } = await useFetch<Merchant[]>('/api/merchants')
+
+function getTicketStatus(remaining: number | null): TicketStatus | null {
+  if (remaining === null)
+    return null
+  if (remaining <= 0)
+    return 'out_of_stock'
+  if (remaining <= 10)
+    return 'low_stock'
+  return 'sufficient'
+}
+
+const pricingItems = computed<PricingItem[]>(() => {
+  return (merchantsData.value ?? []).map((m) => {
+    const remaining = m.maxUsageCounts != null ? m.maxUsageCounts - m.usedCounts : null
+    return {
+      id: String(m.id),
+      type: m.typeName,
+      name: m.name,
+      unitPrice: m.unitPrice,
+      remainingTickets: remaining,
+      ticketStatus: getTicketStatus(remaining),
+      paymentStatus: m.paymentStatus,
+      cooperationStatus: m.isCollaborate ? 'active' : 'suspended',
+    }
+  })
+})
 
 const filteredItems = computed(() => {
-  return pricingItems.filter((item) => {
+  return pricingItems.value.filter((item) => {
     if (filters.keyword && !item.name.toLowerCase().includes(filters.keyword.toLowerCase()))
       return false
     if (filters.merchantType && item.type !== filters.merchantType)
@@ -172,23 +159,24 @@ const gridColumns = tableColumns.map(col => col.width).join(' ')
 // ── 加值服務 資料 ──────────────────────────────────────────────────────────────
 
 interface AddonItem {
-  id: string
+  id: number
   type: '服務' | '商品'
   name: string
   unitPrice: number
   enableStatus: 'active' | 'inactive'
 }
 
-// TODO: 替換為實際 API 呼叫 /api/billing/pricing/addon
-const addonItems: AddonItem[] = [
-  { id: '1', type: '服務', name: '大型行李', unitPrice: 50, enableStatus: 'active' },
-  { id: '2', type: '服務', name: '專業裝備', unitPrice: 100, enableStatus: 'active' },
-  { id: '3', type: '服務', name: '冷凍寄存', unitPrice: 100, enableStatus: 'active' },
-  { id: '4', type: '商品', name: '手機防水袋', unitPrice: 100, enableStatus: 'inactive' },
-]
+const { data: addonData, refresh: refreshAddons } = await useFetch<AddonItem[]>('/api/billing/pricing/addon')
+
+const addonItems = computed(() => addonData.value ?? [])
+
+async function deleteAddon(id: number) {
+  await $fetch(`/api/billing/pricing/addon/${id}`, { method: 'DELETE' })
+  await refreshAddons()
+}
 
 const filteredAddonItems = computed(() => {
-  return addonItems.filter((item) => {
+  return addonItems.value.filter((item) => {
     if (addonFilters.keyword && !item.name.toLowerCase().includes(addonFilters.keyword.toLowerCase()))
       return false
     if (addonFilters.itemType && item.type !== addonFilters.itemType)
@@ -226,29 +214,151 @@ const addonGridColumns = addonTableColumns.map(col => col.width).join(' ')
 // ── 運送方案 資料 ──────────────────────────────────────────────────────────────
 
 interface DeliveryPlan {
-  id: string
+  id: number
   name: string
   price: number
   enableStatus: 'active' | 'inactive'
 }
 
-// TODO: 替換為實際 API 呼叫 /api/billing/pricing/delivery
-const deliveryPlans: DeliveryPlan[] = [
-  { id: '1', name: '雙程套票', price: 250, enableStatus: 'active' },
-  { id: '2', name: '單程運送', price: 130, enableStatus: 'active' },
-]
+const { data: deliveryData, refresh: refreshDelivery } = await useFetch<DeliveryPlan[]>('/api/billing/pricing/delivery')
+
+const deliveryPlans = computed(() => deliveryData.value ?? [])
+
+async function deleteDeliveryPlan(id: number) {
+  await $fetch(`/api/billing/pricing/delivery/${id}`, { method: 'DELETE' })
+  await refreshDelivery()
+}
 
 function formatCurrency(amount: number) {
   return `NT$ ${amount.toLocaleString()}`
+}
+
+// ── 新增加值服務 Modal ──────────────────────────────────────────────────────────
+
+const showAddonModal = ref(false)
+const editingAddonId = ref<number | null>(null)
+
+const addonForm = reactive({
+  name: '',
+  type: '' as '服務' | '商品' | '',
+  unitPrice: '' as number | '',
+  enableStatus: false,
+})
+
+function openAddonModal() {
+  editingAddonId.value = null
+  addonForm.name = ''
+  addonForm.type = ''
+  addonForm.unitPrice = ''
+  addonForm.enableStatus = false
+  showAddonModal.value = true
+}
+
+function openEditAddonModal(item: AddonItem) {
+  editingAddonId.value = item.id
+  addonForm.name = item.name
+  addonForm.type = item.type
+  addonForm.unitPrice = item.unitPrice
+  addonForm.enableStatus = item.enableStatus === 'active'
+  showAddonModal.value = true
+}
+
+async function submitAddon() {
+  if (!addonForm.name || !addonForm.type || addonForm.unitPrice === '')
+    return
+
+  const body = {
+    name: addonForm.name,
+    type: addonForm.type,
+    unitPrice: addonForm.unitPrice,
+    enableStatus: addonForm.enableStatus ? 'active' : 'inactive',
+  }
+
+  if (editingAddonId.value !== null) {
+    await $fetch(`/api/billing/pricing/addon/${editingAddonId.value}`, { method: 'PATCH', body })
+  }
+  else {
+    await $fetch('/api/billing/pricing/addon', { method: 'POST', body })
+  }
+
+  showAddonModal.value = false
+  await refreshAddons()
+}
+
+// ── 新增／編輯 運送方案 Modal ──────────────────────────────────────────────────
+
+const showDeliveryModal = ref(false)
+const editingDeliveryId = ref<number | null>(null)
+
+const deliveryForm = reactive({
+  name: '',
+  price: '' as number | '',
+  enableStatus: false,
+})
+
+function openDeliveryModal() {
+  editingDeliveryId.value = null
+  deliveryForm.name = ''
+  deliveryForm.price = ''
+  deliveryForm.enableStatus = false
+  showDeliveryModal.value = true
+}
+
+function openEditDeliveryModal(plan: DeliveryPlan) {
+  editingDeliveryId.value = plan.id
+  deliveryForm.name = plan.name
+  deliveryForm.price = plan.price
+  deliveryForm.enableStatus = plan.enableStatus === 'active'
+  showDeliveryModal.value = true
+}
+
+async function submitDelivery() {
+  if (!deliveryForm.name || deliveryForm.price === '')
+    return
+
+  const body = {
+    name: deliveryForm.name,
+    price: deliveryForm.price,
+    enableStatus: deliveryForm.enableStatus ? 'active' : 'inactive',
+  }
+
+  if (editingDeliveryId.value !== null) {
+    await $fetch(`/api/billing/pricing/delivery/${editingDeliveryId.value}`, { method: 'PATCH', body })
+  }
+  else {
+    await $fetch('/api/billing/pricing/delivery', { method: 'POST', body })
+  }
+
+  showDeliveryModal.value = false
+  await refreshDelivery()
 }
 </script>
 
 <template>
   <div class="flex flex-col gap-4 p-8">
-    <!-- 標題 -->
-    <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
-      售價設定
-    </h4>
+    <!-- 標題列 -->
+    <div class="flex items-center justify-between">
+      <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+        售價設定
+      </h4>
+      <Button
+        v-if="activeTab === 'addon'"
+        variant="outline-primary"
+        class="cursor-pointer"
+        @click="openAddonModal"
+      >
+        新增加值服務
+      </Button>
+
+      <Button
+        v-if="activeTab === 'delivery'"
+        variant="outline-primary"
+        class="cursor-pointer"
+        @click="openDeliveryModal"
+      >
+        新增運送服務
+      </Button>
+    </div>
 
     <!-- Tab + 卡片 -->
     <div>
@@ -439,30 +549,40 @@ function formatCurrency(amount: number) {
 
                 <!-- 票券單價 -->
                 <div class="text-sm tracking-[0.7px] text-neutral-900">
-                  {{ formatCurrency(item.unitPrice) }}
+                  {{ item.unitPrice != null ? formatCurrency(item.unitPrice) : '-' }}
                 </div>
 
                 <!-- 剩餘票券 -->
                 <div class="text-sm tracking-[0.7px] text-neutral-900">
-                  {{ item.remainingTickets }}
+                  {{ item.remainingTickets ?? '-' }}
                 </div>
 
                 <!-- 票券狀態 -->
                 <div>
                   <Badge
+                    v-if="item.ticketStatus"
                     :type="ticketStatusConfig[item.ticketStatus]?.type ?? 'gray'"
                     :label="ticketStatusConfig[item.ticketStatus]?.label ?? item.ticketStatus"
                     size="sm"
                   />
+                  <span
+                    v-else
+                    class="text-sm text-neutral-400"
+                  >-</span>
                 </div>
 
                 <!-- 付款狀態 -->
                 <div>
                   <Badge
+                    v-if="item.paymentStatus"
                     :type="paymentStatusConfig[item.paymentStatus]?.type ?? 'gray'"
                     :label="paymentStatusConfig[item.paymentStatus]?.label ?? item.paymentStatus"
                     size="sm"
                   />
+                  <span
+                    v-else
+                    class="text-sm text-neutral-400"
+                  >-</span>
                 </div>
 
                 <!-- 合作狀態 -->
@@ -637,23 +757,25 @@ function formatCurrency(amount: number) {
 
                 <!-- 操作 -->
                 <div class="flex items-center gap-3">
-                  <NuxtLink
-                    :to="`/billing/pricing/addon/${item.id}/edit`"
+                  <button
+                    type="button"
                     class="
                       text-sm font-medium tracking-[0.7px] text-primary-400
                       hover:underline
                     "
+                    @click="openEditAddonModal(item)"
                   >
                     編輯
-                  </NuxtLink>
+                  </button>
                   <button
                     type="button"
                     class="
                       text-sm font-medium tracking-[0.7px] text-danger-300
                       hover:underline
                     "
+                    @click="deleteAddon(item.id)"
                   >
-                    刪除
+                    停用
                   </button>
                 </div>
               </div>
@@ -696,21 +818,23 @@ function formatCurrency(amount: number) {
                     text-danger-300
                     hover:underline
                   "
+                  @click="deleteDeliveryPlan(plan.id)"
                 >
                   <Trash2 class="size-5" />
-                  刪除
+                  停用
                 </button>
-                <NuxtLink
-                  :to="`/billing/pricing/delivery/${plan.id}/edit`"
+                <button
+                  type="button"
                   class="
                     flex items-center gap-1 text-sm font-medium tracking-[0.7px]
                     text-primary-400
                     hover:underline
                   "
+                  @click="openEditDeliveryModal(plan)"
                 >
                   <Pencil class="size-5" />
                   編輯
-                </NuxtLink>
+                </button>
               </div>
             </div>
           </div>
@@ -718,4 +842,255 @@ function formatCurrency(amount: number) {
       </div>
     </div>
   </div>
+
+  <!-- 新增加值服務 Modal -->
+  <Teleport to="body">
+    <div
+      v-if="showAddonModal"
+      class="
+        fixed inset-0 z-50 flex items-center justify-center
+        bg-[rgba(33,37,41,0.6)] backdrop-blur-[12px]
+      "
+      @click.self="showAddonModal = false"
+    >
+      <div
+        class="
+          flex w-[480px] flex-col gap-4 rounded-xl border border-neutral-200
+          bg-white p-5 shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <!-- 標題 -->
+        <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+          {{ editingAddonId !== null ? '編輯加值服務' : '新增加值服務' }}
+        </h4>
+
+        <hr class="border-neutral-200">
+
+        <!-- 表單 -->
+        <div class="flex flex-col gap-4">
+          <!-- 服務名稱 -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">服務名稱</label>
+            <input
+              v-model="addonForm.name"
+              type="text"
+              placeholder="例：大型行李、專業裝備"
+              class="
+                w-full rounded-xs border border-neutral-200 bg-white px-3 py-2
+                text-base tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-500
+                focus:border-neutral-400
+              "
+            >
+          </div>
+
+          <!-- 服務類型 -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">服務類型</label>
+            <Select v-model="addonForm.type">
+              <SelectTrigger
+                class="
+                  rounded-xs border-neutral-200 bg-white text-base
+                  tracking-[0.8px]
+                "
+              >
+                <SelectValue placeholder="請選擇服務類型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="服務">
+                    服務
+                  </SelectItem>
+                  <SelectItem value="商品">
+                    商品
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 單價 -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">單價（NTD）</label>
+            <input
+              v-model.number="addonForm.unitPrice"
+              type="number"
+              min="0"
+              placeholder="請填寫服務單價"
+              class="
+                w-full rounded-xs border border-neutral-200 bg-white px-3 py-2
+                text-base tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-500
+                focus:border-neutral-400
+              "
+            >
+          </div>
+
+          <!-- 啟用狀態 -->
+          <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium tracking-[0.7px] text-neutral-600">啟用狀態</span>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                class="
+                  relative inline-flex h-6 w-11 shrink-0 cursor-pointer
+                  rounded-full border-2 border-transparent transition-colors
+                "
+                :class="addonForm.enableStatus ? 'bg-primary-400' : `
+                  bg-neutral-300
+                `"
+                @click="addonForm.enableStatus = !addonForm.enableStatus"
+              >
+                <span
+                  class="
+                    pointer-events-none inline-block size-5 rounded-full
+                    bg-white shadow-sm transition-transform
+                  "
+                  :class="addonForm.enableStatus ? 'translate-x-5' : `
+                    translate-x-0
+                  `"
+                ></span>
+              </button>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-900"
+              >
+                {{ addonForm.enableStatus ? '啟用' : '停用' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部按鈕 -->
+        <div class="flex gap-2">
+          <Button
+            variant="outline"
+            class="flex-1 justify-center"
+            @click="showAddonModal = false"
+          >
+            返回
+          </Button>
+          <Button
+            class="flex-1 justify-center"
+            :disabled="!addonForm.name || !addonForm.type || addonForm.unitPrice === ''"
+            @click="submitAddon"
+          >
+            {{ editingAddonId !== null ? '儲存' : '新增' }}
+          </Button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 新增／編輯 運送方案 Modal -->
+  <Teleport to="body">
+    <div
+      v-if="showDeliveryModal"
+      class="
+        fixed inset-0 z-50 flex items-center justify-center
+        bg-[rgba(33,37,41,0.6)] backdrop-blur-[12px]
+      "
+      @click.self="showDeliveryModal = false"
+    >
+      <div
+        class="
+          flex w-[480px] flex-col gap-4 rounded-xl border border-neutral-200
+          bg-white p-5 shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <!-- 標題 -->
+        <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+          {{ editingDeliveryId !== null ? '編輯運送方案' : '新增運送方案' }}
+        </h4>
+
+        <hr class="border-neutral-200">
+
+        <!-- 表單 -->
+        <div class="flex flex-col gap-4">
+          <!-- 方案名稱 -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">方案名稱</label>
+            <input
+              v-model="deliveryForm.name"
+              type="text"
+              placeholder="例：雙程套票、單程運送"
+              class="
+                w-full rounded-xs border border-neutral-200 bg-white px-3 py-2
+                text-base tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-500
+                focus:border-neutral-400
+              "
+            >
+          </div>
+
+          <!-- 單價 -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">單價（NTD）</label>
+            <input
+              v-model.number="deliveryForm.price"
+              type="number"
+              min="0"
+              placeholder="請填寫方案單價"
+              class="
+                w-full rounded-xs border border-neutral-200 bg-white px-3 py-2
+                text-base tracking-[0.8px] text-neutral-900 outline-none
+                placeholder:text-neutral-500
+                focus:border-neutral-400
+              "
+            >
+          </div>
+
+          <!-- 啟用狀態 -->
+          <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium tracking-[0.7px] text-neutral-600">啟用狀態</span>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                class="
+                  relative inline-flex h-6 w-11 shrink-0 cursor-pointer
+                  rounded-full border-2 border-transparent transition-colors
+                "
+                :class="deliveryForm.enableStatus ? 'bg-primary-400' : `
+                  bg-neutral-300
+                `"
+                @click="deliveryForm.enableStatus = !deliveryForm.enableStatus"
+              >
+                <span
+                  class="
+                    pointer-events-none inline-block size-5 rounded-full
+                    bg-white shadow-sm transition-transform
+                  "
+                  :class="deliveryForm.enableStatus ? 'translate-x-5' : `
+                    translate-x-0
+                  `"
+                ></span>
+              </button>
+              <span
+                class="text-sm font-medium tracking-[0.7px] text-neutral-900"
+              >
+                {{ deliveryForm.enableStatus ? '啟用' : '停用' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部按鈕 -->
+        <div class="flex gap-2">
+          <Button
+            variant="outline"
+            class="flex-1 justify-center"
+            @click="showDeliveryModal = false"
+          >
+            返回
+          </Button>
+          <Button
+            class="flex-1 justify-center"
+            :disabled="!deliveryForm.name || deliveryForm.price === ''"
+            @click="submitDelivery"
+          >
+            {{ editingDeliveryId !== null ? '儲存' : '新增' }}
+          </Button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

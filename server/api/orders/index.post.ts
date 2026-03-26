@@ -1,5 +1,3 @@
-import { nanoid } from 'nanoid'
-
 export default defineEventHandler(async (event) => {
   const supabase = useServiceRoleClient()
   const body = await readBody(event)
@@ -187,25 +185,33 @@ export default defineEventHandler(async (event) => {
     }
 
     // 2. 建立 orders（第一層）
-    // 生成唯一的 voucher_id
-    const voucherId = nanoid(12)
+    // 生成唯一的訂單編號（格式：lqYYMMDD + 3位數字序號）
+    const orderNumber = await generateOrderNumber(supabase)
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         platform_type: platformType,
         platform_id: platformId,
-        user_id: userId, // 如果來自 LIFF 則綁定 user_id，否則為 null
-        voucher_id: voucherId, // 訂單憑證號碼
+        user_id: userId,
+        order_number: orderNumber,
         start_point: pickupLocationId,
         end_point: deliveryLocationId,
         status: 1, // pending 待確認
+        service_plan: body.servicePlan || null,
+        payment_status: 'unpaid',
+        luggage_count: body.luggageCount,
+        departure_date: body.deliveryDate || null,
+        return_date: body.returnDate || null,
+        recipient_name: body.recipientName || null,
+        recipient_phone: body.recipientPhone || null,
         notes: body.notes || '',
       })
       .select(`
         id,
         platform_id,
         user_id,
+        order_number,
         voucher_id,
         status,
         notes,
@@ -250,16 +256,22 @@ export default defineEventHandler(async (event) => {
     const endPoint = Array.isArray(order.end_point) ? order.end_point[0] : order.end_point
 
     return {
-      id: order.id.toString(),
+      id: order.order_number ?? order.id.toString(),
       voucherId: order.voucher_id,
       userId: order.user_id,
       category: orderCategory,
       lineName: body.lineName || body.displayName || '未提供',
       phone: body.phone || '未提供',
       deliveryDate: body.deliveryDate,
+      returnDate: body.returnDate || null,
       pickupTime: body.pickupTime,
       luggageCount: body.luggageCount,
+      servicePlan: body.servicePlan || null,
+      paymentStatus: 'unpaid',
+      recipientName: body.recipientName || null,
+      recipientPhone: body.recipientPhone || null,
       status: orderStatus?.status || 'pending',
+      scheduleId: null,
       pickupLocation: {
         id: startPoint?.id?.toString() || '',
         name: startPoint?.name || '',

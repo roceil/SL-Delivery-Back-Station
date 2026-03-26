@@ -58,7 +58,7 @@ const form = ref({
   email: merchant.value.email || '',
   address: merchant.value.address || '',
   type: merchant.value.type,
-  area: merchant.value.area || 'A',
+  area: merchant.value.area || '',
   isActive: merchant.value.isActive ?? false,
   isCollaborate: merchant.value.isCollaborate ?? false,
   latitude: merchant.value.latitude?.toString() || '',

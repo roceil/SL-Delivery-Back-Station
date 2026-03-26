@@ -29,6 +29,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  console.log('取得商家資料:', merchant)
+
   // 格式化回傳資料
   return {
     id: merchant.id,
@@ -39,7 +41,7 @@ export default defineEventHandler(async (event) => {
     address: merchant.address,
     type: merchant.types,
     typeName: merchant.merchants_types?.name || '',
-    area: merchant.address?.includes('A') ? 'A' : merchant.address?.includes('B') ? 'B' : merchant.address?.includes('C') ? 'C' : 'D',
+    area: merchant.area,
     isActive: merchant.is_active,
     isCollaborate: merchant.is_collaborate,
     voucherId: merchant.voucher_id,
