@@ -6,38 +6,36 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '缺少訂單 ID' })
   }
 
-  const numericId = Number.parseInt(id)
-  if (Number.isNaN(numericId)) {
-    throw createError({ statusCode: 400, message: '無效的訂單 ID' })
-  }
+  const selectFields = `
+    id,
+    order_number,
+    platform_id,
+    platform_type,
+    voucher_id,
+    user_id,
+    schedule_id,
+    status,
+    service_plan,
+    payment_status,
+    luggage_count,
+    departure_date,
+    return_date,
+    recipient_name,
+    recipient_phone,
+    notes,
+    created_at,
+    updated_at,
+    start_point:stations!orders_start_point_fkey (id, name, address, area),
+    end_point:stations!orders_end_point_fkey (id, name, address, area),
+    order_status:orders_status (status)
+  `
 
-  const { data: orderData, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      order_number,
-      platform_id,
-      platform_type,
-      voucher_id,
-      user_id,
-      schedule_id,
-      status,
-      service_plan,
-      payment_status,
-      luggage_count,
-      departure_date,
-      return_date,
-      recipient_name,
-      recipient_phone,
-      notes,
-      created_at,
-      updated_at,
-      start_point:stations!orders_start_point_fkey (id, name, address, area),
-      end_point:stations!orders_end_point_fkey (id, name, address, area),
-      order_status:orders_status (status)
-    `)
-    .eq('id', numericId)
-    .single()
+  const numericId = Number.parseInt(id)
+  const query = Number.isNaN(numericId)
+    ? supabase.from('orders').select(selectFields).eq('order_number', id).single()
+    : supabase.from('orders').select(selectFields).eq('id', numericId).single()
+
+  const { data: orderData, error } = await query
 
   if (error || !orderData) {
     throw createError({ statusCode: 404, message: '找不到此訂單' })

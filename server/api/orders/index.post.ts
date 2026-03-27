@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
   // 驗證必填欄位
-  if (!body.deliveryDate || !body.pickupTime || !body.luggageCount || !body.pickupLocationId || !body.deliveryLocationId) {
+  if (!body.deliveryDate || !body.luggageCount || !body.pickupLocationId || !body.deliveryLocationId) {
     throw createError({
       statusCode: 400,
       message: '缺少必填欄位',
@@ -251,6 +251,62 @@ export default defineEventHandler(async (event) => {
         statusCode: 500,
         message: `建立訂單失敗: ${orderError?.message || '未知錯誤'}`,
       })
+    }
+
+    // 3. 建立費用明細
+    const feeRows: Array<{
+      order_id: number
+      item_type: string
+      item_name: string
+      unit_price: number
+      quantity: number
+      subtotal: number
+    }> = []
+
+    // 服務方案費用（非商家代售）
+    if (body.servicePlan && body.servicePlan !== 'merchant') {
+      const { data: deliveryPlans } = await supabase
+        .from('service_plans')
+        .select('name, unit_price')
+        .eq('plan_type', 'delivery')
+        .order('id', { ascending: true })
+
+      const planIndex = body.servicePlan === 'round_trip' ? 0 : 1
+      const plan = deliveryPlans?.[planIndex]
+
+      if (plan) {
+        feeRows.push({
+          order_id: order.id,
+          item_type: 'plan',
+          item_name: plan.name,
+          unit_price: plan.unit_price,
+          quantity: body.luggageCount,
+          subtotal: plan.unit_price * body.luggageCount,
+        })
+      }
+    }
+
+    // 加值服務費用
+    if (Array.isArray(body.addonItems)) {
+      for (const addon of body.addonItems) {
+        if (addon.count > 0) {
+          feeRows.push({
+            order_id: order.id,
+            item_type: 'addon',
+            item_name: addon.name,
+            unit_price: addon.unitPrice,
+            quantity: addon.count,
+            subtotal: addon.unitPrice * addon.count,
+          })
+        }
+      }
+    }
+
+    if (feeRows.length > 0) {
+      const { error: feesError } = await supabase.from('order_fees').insert(feeRows)
+      if (feesError) {
+        console.error('建立費用明細失敗:', feesError)
+      }
     }
 
     // 返回完整的訂單資料

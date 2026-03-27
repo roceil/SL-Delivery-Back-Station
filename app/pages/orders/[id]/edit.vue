@@ -67,11 +67,21 @@ interface Order {
   returnDate?: string | null
   luggageCount: number
   status: string
+  servicePlan?: string | null
   pickupLocation: Location
   deliveryLocation: Location
   notes: string
   recipientName?: string
   recipientPhone?: string
+}
+
+interface Fee {
+  id: number
+  item_type: string
+  item_name: string
+  unit_price: number
+  quantity: number
+  subtotal: number
 }
 
 interface DeliveryPoint {
@@ -92,31 +102,89 @@ if (error.value) {
   })
 }
 
+const { data: fees } = await useFetch<Fee[]>(`/api/orders/${orderId}/fees`)
 const { data: deliveryPoints } = await useFetch<DeliveryPoint[]>('/api/delivery-points')
 
 // ── 訂單類型 ──────────────────────────────────────────
 type OrderType = 'round-trip' | 'one-way' | 'merchant'
 
-const orderTypes = [
-  { key: 'round-trip' as OrderType, label: '雙程套票', price: 'NT$ 250 / 件' },
-  { key: 'one-way' as OrderType, label: '單程運送', price: 'NT$ 130 / 件' },
-  { key: 'merchant' as OrderType, label: '商家代售', price: null },
-] as const
+function mapServicePlan(plan: string | null | undefined): OrderType {
+  if (plan === 'round_trip')
+    return 'round-trip'
+  if (plan === 'one_way')
+    return 'one-way'
+  if (plan === 'merchant')
+    return 'merchant'
+  return 'round-trip'
+}
 
-const orderType = ref<OrderType>('round-trip')
+interface DeliveryPlan {
+  id: number
+  name: string
+  price: number
+  enableStatus: string
+}
+
+interface AddonPlan {
+  id: number
+  type: string
+  name: string
+  unitPrice: number
+  enableStatus: string
+}
+
+const { data: deliveryPlans } = await useFetch<DeliveryPlan[]>('/api/billing/pricing/delivery')
+const { data: addonPlans } = await useFetch<AddonPlan[]>('/api/billing/pricing/addon')
+
+const orderTypes = computed(() => {
+  const plans = deliveryPlans.value ?? []
+  return [
+    { key: 'round-trip' as OrderType, label: plans[0]?.name ?? '雙程套票', price: plans[0] ? `NT$ ${plans[0].price} / 件` : null },
+    { key: 'one-way' as OrderType, label: plans[1]?.name ?? '單程運送', price: plans[1] ? `NT$ ${plans[1].price} / 件` : null },
+    { key: 'merchant' as OrderType, label: '商家代售', price: null },
+  ]
+})
+
+const orderType = ref<OrderType>(mapServicePlan(order.value?.servicePlan))
 
 // ── 表單欄位（以訂單資料初始化）──────────────────────
 const luggageCount = ref(order.value?.luggageCount ?? 1)
-const hasAddons = ref(false)
-const largeLuggage = ref(0)
-const proEquipment = ref(0)
+
+const addonFees = (fees.value ?? []).filter(f => f.item_type === 'addon')
+const hasAddons = ref(addonFees.length > 0)
+
+const addonCounts = ref<Record<number, number>>(
+  Object.fromEntries(
+    (addonPlans.value ?? [])
+      .map(plan => [plan.id, addonFees.find(f => f.item_name === plan.name)?.quantity ?? 0])
+      .filter(([, qty]) => (qty as number) > 0),
+  ),
+)
+
+function getAddonCount(id: number) {
+  return addonCounts.value[id] ?? 0
+}
+
+function setAddonCount(id: number, delta: number) {
+  const next = getAddonCount(id) + delta
+  if (next <= 0) {
+    delete addonCounts.value[id]
+  }
+  else {
+    addonCounts.value[id] = next
+  }
+}
 
 interface SpecialItem {
   name: string
   unitPrice: number
   count: number
 }
-const specialItems = ref<SpecialItem[]>([])
+const specialItems = ref<SpecialItem[]>(
+  addonFees
+    .filter(f => f.item_name !== '大型行李箱' && f.item_name !== '專業裝備')
+    .map(f => ({ name: f.item_name, unitPrice: f.unit_price, count: f.quantity })),
+)
 
 function addSpecialItem() {
   specialItems.value.push({ name: '', unitPrice: 0, count: 0 })
@@ -160,16 +228,22 @@ watch(sameAsPassenger, (val) => {
 const passengerTypes = ['散客', '合作', 'Trip', 'Klook']
 
 // ── 費用計算 ─────────────────────────────────────────
-const unitPrice = computed(() => orderType.value === 'round-trip' ? 250 : 130)
+const unitPrice = computed(() => {
+  const plans = deliveryPlans.value ?? []
+  if (orderType.value === 'round-trip')
+    return plans[0]?.price ?? 250
+  if (orderType.value === 'one-way')
+    return plans[1]?.price ?? 130
+  return 0
+})
 const baseSubtotal = computed(() => unitPrice.value * luggageCount.value)
-const largeLuggageCost = computed(() => largeLuggage.value * 50)
-const proEquipmentCost = computed(() => proEquipment.value * 100)
+const addonPlansCost = computed(() =>
+  (addonPlans.value ?? []).reduce((sum, plan) => sum + getAddonCount(plan.id) * plan.unitPrice, 0),
+)
 const specialItemsCost = computed(() =>
   specialItems.value.reduce((sum, item) => sum + item.unitPrice * item.count, 0),
 )
-const addonSubtotal = computed(() =>
-  largeLuggageCost.value + proEquipmentCost.value + specialItemsCost.value,
-)
+const addonSubtotal = computed(() => addonPlansCost.value + specialItemsCost.value)
 const total = computed(() => baseSubtotal.value + (hasAddons.value ? addonSubtotal.value : 0))
 
 // ── 送出 ─────────────────────────────────────────────
@@ -184,7 +258,7 @@ async function submitForm() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        type: orderType.value,
+        servicePlan: orderType.value === 'round-trip' ? 'round_trip' : orderType.value === 'one-way' ? 'one_way' : orderType.value,
         luggageCount: luggageCount.value,
         hasAddons: hasAddons.value,
         passengerType: passengerType.value,
@@ -198,6 +272,14 @@ async function submitForm() {
         recipientName: recipientName.value,
         recipientPhone: recipientPhone.value,
         notes: notes.value,
+        feeItems: hasAddons.value
+          ? [
+              ...(addonPlans.value ?? [])
+                .filter(p => getAddonCount(p.id) > 0)
+                .map(p => ({ name: p.name, unitPrice: p.unitPrice, count: getAddonCount(p.id) })),
+              ...specialItems.value.filter(s => s.name && s.count > 0),
+            ]
+          : [],
       }),
     })
     router.push(`/orders/${orderId}`)
@@ -401,36 +483,32 @@ async function submitForm() {
 
           <template v-if="hasAddons">
             <div class="flex gap-4">
-              <!-- 大型行李箱 -->
               <div
+                v-for="plan in addonPlans"
+                :key="plan.id"
                 class="
                   flex flex-1 flex-col gap-3 rounded-sm border
                   border-neutral-200 p-4
                 "
               >
                 <div class="flex items-start justify-between gap-3">
-                  <div class="flex flex-col gap-1">
-                    <div class="flex items-center gap-2">
-                      <div
-                        class="
-                          w-1 self-stretch rounded-xs bg-gradient-to-br
-                          from-[#4090e8] to-[#306cf7]
-                        "
-                      ></div>
-                      <p
-                        class="
-                          text-base font-bold tracking-[0.8px] text-neutral-900
-                        "
-                      >
-                        大型行李箱
-                      </p>
-                    </div>
-                    <p class="text-sm text-neutral-600">
-                      29 寸以上
+                  <div class="flex items-center gap-2">
+                    <div
+                      class="
+                        w-1 self-stretch rounded-xs bg-gradient-to-br
+                        from-[#4090e8] to-[#306cf7]
+                      "
+                    ></div>
+                    <p
+                      class="
+                        text-base font-bold tracking-[0.8px] text-neutral-900
+                      "
+                    >
+                      {{ plan.name }}
                     </p>
                   </div>
                   <p class="shrink-0 text-sm font-bold text-primary-300">
-                    +NT$ 50 / 件
+                    +NT$ {{ plan.unitPrice }} / 件
                   </p>
                 </div>
                 <div
@@ -445,8 +523,8 @@ async function submitForm() {
                       hover:bg-neutral-200
                       disabled:cursor-not-allowed disabled:opacity-40
                     "
-                    :disabled="largeLuggage <= 0"
-                    @click="largeLuggage--"
+                    :disabled="getAddonCount(plan.id) <= 0"
+                    @click="setAddonCount(plan.id, -1)"
                   >
                     <Minus class="size-6" />
                   </button>
@@ -455,82 +533,14 @@ async function submitForm() {
                       flex-1 text-center text-base tracking-[0.8px]
                       text-neutral-900
                     "
-                  >{{ largeLuggage }}</span>
+                  >{{ getAddonCount(plan.id) }}</span>
                   <button
                     type="button"
                     class="
                       flex shrink-0 items-center justify-center rounded-full p-2
                       hover:bg-neutral-200
                     "
-                    @click="largeLuggage++"
-                  >
-                    <Plus class="size-6" />
-                  </button>
-                </div>
-              </div>
-
-              <!-- 專業裝備 -->
-              <div
-                class="
-                  flex flex-1 flex-col gap-3 rounded-sm border
-                  border-neutral-200 p-4
-                "
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="flex flex-col gap-1">
-                    <div class="flex items-center gap-2">
-                      <div
-                        class="
-                          w-1 self-stretch rounded-xs bg-gradient-to-br
-                          from-[#4090e8] to-[#306cf7]
-                        "
-                      ></div>
-                      <p
-                        class="
-                          text-base font-bold tracking-[0.8px] text-neutral-900
-                        "
-                      >
-                        專業裝備
-                      </p>
-                    </div>
-                    <p class="text-sm text-neutral-600">
-                      潛水裝備、高爾夫球袋
-                    </p>
-                  </div>
-                  <p class="shrink-0 text-sm font-bold text-primary-300">
-                    +NT$ 100 / 件
-                  </p>
-                </div>
-                <div
-                  class="
-                    flex items-center gap-3 rounded-xs bg-neutral-100 px-3 py-1
-                  "
-                >
-                  <button
-                    type="button"
-                    class="
-                      flex shrink-0 items-center justify-center rounded-full p-2
-                      hover:bg-neutral-200
-                      disabled:cursor-not-allowed disabled:opacity-40
-                    "
-                    :disabled="proEquipment <= 0"
-                    @click="proEquipment--"
-                  >
-                    <Minus class="size-6" />
-                  </button>
-                  <span
-                    class="
-                      flex-1 text-center text-base tracking-[0.8px]
-                      text-neutral-900
-                    "
-                  >{{ proEquipment }}</span>
-                  <button
-                    type="button"
-                    class="
-                      flex shrink-0 items-center justify-center rounded-full p-2
-                      hover:bg-neutral-200
-                    "
-                    @click="proEquipment++"
+                    @click="setAddonCount(plan.id, 1)"
                   >
                     <Plus class="size-6" />
                   </button>
@@ -599,8 +609,8 @@ async function submitForm() {
                     type="text"
                     placeholder="物件名稱"
                     class="
-                      rounded-xs border border-neutral-200 px-3 py-2 text-base
-                      outline-none
+                      min-w-0 rounded-xs border border-neutral-200 px-3 py-2
+                      text-base outline-none
                       focus:border-primary-300
                     "
                   >
@@ -609,8 +619,8 @@ async function submitForm() {
                     type="number"
                     min="0"
                     class="
-                      rounded-xs border border-neutral-200 px-3 py-2 text-base
-                      outline-none
+                      min-w-0 rounded-xs border border-neutral-200 px-3 py-2
+                      text-base outline-none
                       focus:border-primary-300
                     "
                   >
@@ -1019,18 +1029,12 @@ async function submitForm() {
               </p>
               <div class="flex flex-col gap-2 text-sm text-neutral-600">
                 <div
-                  v-if="largeLuggage > 0"
+                  v-for="plan in addonPlans.filter(p => getAddonCount(p.id) > 0)"
+                  :key="plan.id"
                   class="flex items-center justify-between"
                 >
-                  <span>大型行李箱</span>
-                  <span class="text-neutral-900">NT$ {{ largeLuggageCost }}</span>
-                </div>
-                <div
-                  v-if="proEquipment > 0"
-                  class="flex items-center justify-between"
-                >
-                  <span>專業裝備</span>
-                  <span class="text-neutral-900">NT$ {{ proEquipmentCost }}</span>
+                  <span>{{ plan.name }}</span>
+                  <span class="text-neutral-900">NT$ {{ getAddonCount(plan.id) * plan.unitPrice }}</span>
                 </div>
                 <div
                   v-if="specialItemsCost > 0"

@@ -12,9 +12,11 @@ import {
   Copy,
   FileText,
   MapPin,
+  Minus,
   Package,
   Pencil,
   Phone,
+  Plus,
   Store,
   Ticket,
   Truck,
@@ -29,14 +31,6 @@ interface Location {
   name: string
   address: string
   area: string
-}
-
-interface FeeItem {
-  plan: string
-  type: string
-  unitPrice: number
-  quantity: number
-  subtotal: number
 }
 
 interface Order {
@@ -60,7 +54,6 @@ interface Order {
   pickupLocation: Location
   deliveryLocation: Location
   notes: string
-  fees?: FeeItem[]
   createdAt: string
   updatedAt: string
 }
@@ -321,24 +314,195 @@ const { data: fees } = await useFetch<Array<{
 
 const totalFees = computed(() => fees.value?.reduce((sum, f) => sum + f.subtotal, 0) ?? 0)
 
-// 去回程
-const isRoundTrip = computed(() => order.value?.servicePlan === 'round_trip')
+// 服務方案
+interface DeliveryPlan {
+  id: number
+  name: string
+  price: number
+}
+
+const { data: deliveryPlans } = await useFetch<DeliveryPlan[]>('/api/billing/pricing/delivery')
+
+// 舊訂單可能沒有 service_plan，用 return_date 作為備援判斷
+const isRoundTrip = computed(() =>
+  order.value?.servicePlan === 'round_trip'
+  || (order.value?.servicePlan == null && !!order.value?.returnDate),
+)
+
+const servicePlanLabel = computed(() => {
+  const plan = order.value?.servicePlan
+  if (plan === 'merchant')
+    return '商家代售'
+  if (plan === 'round_trip' || (plan == null && isRoundTrip.value)) {
+    return deliveryPlans.value?.find(p => p.name.includes('雙程') || p.name.includes('來回'))?.name ?? '雙程套票'
+  }
+  if (plan === 'one_way') {
+    return deliveryPlans.value?.find(p => p.name.includes('單程'))?.name ?? '單程運送'
+  }
+  return null
+})
+
+// 確認訂單
+const isConfirming = ref(false)
+
+// 取消訂單
+const isCancelling = ref(false)
+
+async function cancelOrder() {
+  if (!order.value || isCancelling.value)
+    return
+  // eslint-disable-next-line no-alert
+  if (!window.confirm('確定要取消此訂單嗎？此操作無法復原。'))
+    return
+  isCancelling.value = true
+  try {
+    // eslint-disable-next-line ts/no-explicit-any
+    await ($fetch as any)(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      body: { status: 6 },
+    })
+    await refreshNuxtData()
+  }
+  catch (err) {
+    console.error('取消訂單失敗:', err)
+  }
+  finally {
+    isCancelling.value = false
+  }
+}
+
+async function confirmOrder() {
+  if (!order.value || isConfirming.value)
+    return
+  isConfirming.value = true
+  try {
+    await ($fetch as any)(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      body: { status: 2 },
+    })
+    await refreshNuxtData()
+  }
+  catch (err) {
+    console.error('確認訂單失敗:', err)
+  }
+  finally {
+    isConfirming.value = false
+  }
+}
 
 // 運送步驟進度（共 6 步）
+// 步驟：1=訂單確認中, 2=訂單成立待交付, 3=已收件, 4=運送中, 5=已送達, 6=已完成
 const completedStepsCount = computed(() => {
   const map: Record<string, number> = {
-    pending: 0,
+    pending: 1,
     confirmed: 2,
-    assigned: 2,
+    assigned: 3,
     in_delivery: 4,
-    delivered: 6,
+    delivered: 5,
+    completed: 6,
     cancelled: 0,
+    overdue: 0,
   }
   return map[order.value?.status ?? ''] ?? 0
 })
 
 function isStepDone(n: number) {
   return completedStepsCount.value >= n
+}
+
+// 新增加值服務 modal
+interface AddonPlan {
+  id: number
+  type: '服務' | '商品'
+  name: string
+  unitPrice: number
+  enableStatus: 'active' | 'inactive'
+}
+
+const { data: addonPlans } = await useFetch<AddonPlan[]>('/api/billing/pricing/addon')
+
+interface AddonSpecialItem {
+  name: string
+  unitPrice: number
+  count: number
+}
+
+const showAddonModal = ref(false)
+const addonCounts = ref<Record<number, number>>({})
+const addonSpecialItems = ref<AddonSpecialItem[]>([])
+const isSubmittingAddon = ref(false)
+
+function getAddonCount(id: number) {
+  return addonCounts.value[id] ?? 0
+}
+
+function setAddonCount(id: number, delta: number) {
+  const next = (addonCounts.value[id] ?? 0) + delta
+  if (next <= 0)
+    delete addonCounts.value[id]
+  else
+    addonCounts.value[id] = next
+}
+
+function addAddonSpecialItem() {
+  addonSpecialItems.value.push({ name: '', unitPrice: 0, count: 1 })
+}
+
+function removeAddonSpecialItem(i: number) {
+  addonSpecialItems.value.splice(i, 1)
+}
+
+function closeAddonModal() {
+  showAddonModal.value = false
+  addonCounts.value = {}
+  addonSpecialItems.value = []
+}
+
+const selectedAddonItems = computed(() =>
+  (addonPlans.value ?? []).filter(p => getAddonCount(p.id) > 0),
+)
+
+const addonSubtotal = computed(() => {
+  const planCost = (addonPlans.value ?? []).reduce((sum, p) => sum + p.unitPrice * getAddonCount(p.id), 0)
+  const specialCost = addonSpecialItems.value.reduce((sum, item) => sum + item.unitPrice * item.count, 0)
+  return planCost + specialCost
+})
+
+const hasAddonSelection = computed(() =>
+  selectedAddonItems.value.length > 0
+  || addonSpecialItems.value.some(item => item.name && item.count > 0),
+)
+
+async function submitAddon() {
+  if (!hasAddonSelection.value || isSubmittingAddon.value)
+    return
+  isSubmittingAddon.value = true
+  try {
+    const planItems = selectedAddonItems.value.map(p => ({
+      name: p.name,
+      unitPrice: p.unitPrice,
+      quantity: getAddonCount(p.id),
+    }))
+    const specialItemsList = addonSpecialItems.value
+      .filter(item => item.name && item.count > 0)
+      .map(item => ({
+        name: item.name,
+        unitPrice: item.unitPrice,
+        quantity: item.count,
+      }))
+    await $fetch(`/api/orders/${orderId}/fees`, {
+      method: 'POST',
+      body: { items: [...planItems, ...specialItemsList] },
+    })
+    await refreshNuxtData()
+    closeAddonModal()
+  }
+  catch (err) {
+    console.error('新增加值服務失敗:', err)
+  }
+  finally {
+    isSubmittingAddon.value = false
+  }
 }
 </script>
 
@@ -502,6 +666,14 @@ function isStepDone(n: number) {
                   size="sm"
                 />
               </dd>
+              <template v-if="servicePlanLabel">
+                <dt class="text-sm tracking-wider text-neutral-500">
+                  服務方案
+                </dt>
+                <dd class="text-sm tracking-wider text-neutral-900">
+                  {{ servicePlanLabel }}
+                </dd>
+              </template>
               <dt class="text-sm tracking-wider text-neutral-500">
                 旅客姓名
               </dt>
@@ -1239,7 +1411,10 @@ function isStepDone(n: number) {
           </div>
 
           <!-- 快速操作 -->
-          <div class="rounded-md border border-info-200 bg-neutral-0 p-6">
+          <div
+            v-if="order.status !== 'cancelled'"
+            class="rounded-md border border-info-200 bg-neutral-0 p-6"
+          >
             <h3
               class="mb-2 text-lg font-bold tracking-wider text-neutral-900"
             >
@@ -1249,13 +1424,16 @@ function isStepDone(n: number) {
               <Button
                 v-if="order.status === 'pending'"
                 class="w-full justify-center"
+                :disabled="isConfirming"
+                @click="confirmOrder"
               >
                 <Check class="size-4" />
-                確認訂單
+                {{ isConfirming ? '確認中...' : '確認訂單' }}
               </Button>
               <Button
                 variant="outline"
                 class="w-full justify-center"
+                @click="showAddonModal = true"
               >
                 <Package class="size-4" />
                 新增加值服務
@@ -1291,21 +1469,25 @@ function isStepDone(n: number) {
                 </a>
               </Button>
               <Button
+                v-if="order.status !== 'cancelled'"
                 as-child
                 variant="outline"
                 class="w-full justify-center"
               >
-                <NuxtLink :to="`/orders/${order.id}/edit`">
+                <NuxtLink :to="`/orders/${order.orderNumber || order.id}/edit`">
                   <Pencil class="size-4" />
                   編輯訂單
                 </NuxtLink>
               </Button>
               <Button
+                v-if="order.status !== 'cancelled'"
                 variant="outline"
                 class="w-full justify-center"
+                :disabled="isCancelling"
+                @click="cancelOrder"
               >
                 <X class="size-4" />
-                取消訂單
+                {{ isCancelling ? '取消中...' : '取消訂單' }}
               </Button>
             </div>
           </div>
@@ -1347,13 +1529,42 @@ function isStepDone(n: number) {
         <!-- 左側：訂單詳情 -->
         <div class="flex-1 overflow-y-auto bg-neutral-100 p-8">
           <h1 class="mb-6 text-2xl font-bold tracking-wider text-neutral-900">
-            訂單編號 {{ order?.id }}
+            訂單編號 {{ order?.orderNumber || order?.id }}
           </h1>
+
+          <!-- 選取的變更詳情 -->
+          <div
+            v-if="historyItems[selectedHistoryIndex]"
+            class="
+              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+            "
+          >
+            <p
+              class="mb-3 text-sm tracking-wider text-primary-400"
+            >
+              {{ historyItems[selectedHistoryIndex]?.datetime }}
+            </p>
+            <div
+              v-for="change in historyItems[selectedHistoryIndex]?.changes"
+              :key="change.field"
+              class="flex flex-col gap-1"
+            >
+              <p class="text-base font-bold tracking-wider text-neutral-900">
+                {{ change.field }}
+              </p>
+              <div class="flex items-center gap-2 text-sm tracking-wider">
+                <span class="text-neutral-500">{{ change.from === '無' ? '（無）' : change.from }}</span>
+                <span class="text-neutral-400">→</span>
+                <span class="font-medium text-neutral-900">{{ change.to === '無' ? '（無）' : change.to }}</span>
+              </div>
+            </div>
+          </div>
 
           <!-- 旅客資訊 -->
           <div
             class="
-              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              mb-4 hidden rounded-2xl border border-neutral-200 bg-white p-6
               shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
             "
           >
@@ -1413,7 +1624,7 @@ function isStepDone(n: number) {
           <!-- 費用明細 -->
           <div
             class="
-              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              mb-4 hidden rounded-2xl border border-neutral-200 bg-white p-6
               shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
             "
           >
@@ -1471,7 +1682,7 @@ function isStepDone(n: number) {
           </div>
 
           <!-- 起始點 / 送達點 -->
-          <div class="mb-4 flex gap-4">
+          <div class="mb-4 flex hidden gap-4">
             <div
               class="
                 flex-1 rounded-2xl border border-neutral-200 bg-white p-6
@@ -1592,7 +1803,7 @@ function isStepDone(n: number) {
           <!-- 備註 -->
           <div
             class="
-              mb-4 rounded-2xl border border-warning-200 bg-white p-6
+              mb-4 hidden rounded-2xl border border-warning-200 bg-white p-6
               shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
             "
           >
@@ -1610,7 +1821,7 @@ function isStepDone(n: number) {
           <!-- 領件資訊 -->
           <div
             class="
-              mb-4 rounded-2xl border border-neutral-200 bg-white p-6
+              mb-4 hidden rounded-2xl border border-neutral-200 bg-white p-6
               shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
             "
           >
@@ -1653,7 +1864,7 @@ function isStepDone(n: number) {
           <!-- 訂單資訊 -->
           <div
             class="
-              rounded-2xl border border-neutral-200 bg-white p-6
+              hidden rounded-2xl border border-neutral-200 bg-white p-6
               shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
             "
           >
@@ -1674,7 +1885,7 @@ function isStepDone(n: number) {
                   訂單編號
                 </dt>
                 <dd class="text-base tracking-wider text-neutral-900">
-                  {{ order?.id }}
+                  {{ order?.orderNumber || order?.id }}
                 </dd>
               </div>
               <div class="flex items-center gap-2">
@@ -1742,6 +1953,354 @@ function isStepDone(n: number) {
               </p>
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 新增加值服務彈窗 -->
+  <Teleport to="body">
+    <div
+      v-if="showAddonModal"
+      class="
+        fixed inset-0 z-50 flex items-center justify-center
+        bg-[rgba(33,37,41,0.6)] backdrop-blur-[12px]
+      "
+      @click.self="closeAddonModal"
+    >
+      <div
+        class="
+          relative flex h-[760px] w-[1080px] flex-col overflow-hidden
+          rounded-2xl border border-neutral-200 bg-white
+          shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+        "
+      >
+        <!-- 關閉按鈕 -->
+        <button
+          type="button"
+          class="
+            absolute top-2 right-2 z-10 flex items-center justify-center
+            rounded-full p-2
+            hover:bg-neutral-100
+          "
+          @click="closeAddonModal"
+        >
+          <X class="size-4 text-neutral-600" />
+        </button>
+
+        <!-- 主要內容區（左 + 右） -->
+        <div class="grid flex-1 grid-cols-12 overflow-hidden">
+          <!-- 左側：加值服務選擇 -->
+          <div class="col-span-9 flex flex-col gap-6 overflow-y-auto p-8">
+            <h4 class="text-2xl font-bold tracking-[1.2px] text-neutral-900">
+              新增加值服務
+            </h4>
+
+            <div
+              v-if="!addonPlans?.length"
+              class="text-sm tracking-wider text-neutral-400"
+            >
+              目前沒有可用的加值服務
+            </div>
+
+            <div
+              v-else
+              class="grid grid-cols-2 gap-4"
+            >
+              <div
+                v-for="plan in addonPlans"
+                :key="plan.id"
+                class="
+                  flex flex-col gap-3 rounded-xl border border-neutral-200
+                  bg-white p-4
+                "
+              >
+                <div class="flex items-start gap-3">
+                  <div class="flex flex-1 flex-col gap-1">
+                    <div class="flex items-start gap-2">
+                      <div
+                        class="
+                          mt-0.5 w-1 self-stretch rounded-xs bg-gradient-to-br
+                          from-[#4090e8] to-[#306cf7]
+                        "
+                      ></div>
+                      <span
+                        class="
+                          text-base font-bold tracking-[0.8px] text-neutral-900
+                        "
+                      >{{ plan.name }}</span>
+                    </div>
+                    <span class="text-sm tracking-[0.7px] text-neutral-600">
+                      {{ plan.type }}
+                    </span>
+                  </div>
+                  <span
+                    class="text-sm font-bold tracking-[0.7px] text-primary-400"
+                  >+NT$ {{ plan.unitPrice.toLocaleString() }} / 件</span>
+                </div>
+                <div
+                  class="
+                    flex h-10 items-center gap-3 rounded-xs bg-neutral-100 px-3
+                    py-2
+                  "
+                >
+                  <button
+                    type="button"
+                    class="
+                      flex items-center rounded-full p-2 transition-colors
+                      hover:bg-neutral-200
+                    "
+                    @click="setAddonCount(plan.id, -1)"
+                  >
+                    <Minus class="size-4 text-neutral-900" />
+                  </button>
+                  <span
+                    class="
+                      flex-1 text-center text-base tracking-[0.8px]
+                      text-neutral-900
+                    "
+                  >{{ getAddonCount(plan.id) }}</span>
+                  <button
+                    type="button"
+                    class="
+                      flex items-center rounded-full p-2 transition-colors
+                      hover:bg-neutral-200
+                    "
+                    @click="setAddonCount(plan.id, 1)"
+                  >
+                    <Plus class="size-4 text-neutral-900" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 特殊物件 -->
+            <div
+              class="
+                flex flex-col gap-3 rounded-sm border border-neutral-200 p-4
+              "
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <div
+                      class="
+                        w-1 self-stretch rounded-xs bg-gradient-to-br
+                        from-[#4090e8] to-[#306cf7]
+                      "
+                    ></div>
+                    <p
+                      class="
+                        text-base font-bold tracking-[0.8px] text-neutral-900
+                      "
+                    >
+                      特殊物件
+                    </p>
+                  </div>
+                  <p class="text-sm text-neutral-600">
+                    如衝浪板、腳踏車、嬰兒推車等
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="
+                    flex shrink-0 items-center gap-2 rounded-sm border
+                    border-primary-300 px-4 py-2 text-sm font-medium
+                    text-primary-300
+                    hover:bg-primary-100
+                  "
+                  @click="addAddonSpecialItem"
+                >
+                  <Plus class="size-5" />
+                  新增物件
+                </button>
+              </div>
+              <template v-if="addonSpecialItems.length > 0">
+                <div
+                  class="
+                    grid grid-cols-[1fr_1fr_1fr_40px] gap-3 text-sm font-medium
+                    text-neutral-600
+                  "
+                >
+                  <span>物件</span><span>單價 NTD</span><span>件數</span><span></span>
+                </div>
+                <div
+                  v-for="(item, i) in addonSpecialItems"
+                  :key="i"
+                  class="grid grid-cols-[1fr_1fr_1fr_40px] items-center gap-3"
+                >
+                  <input
+                    v-model="item.name"
+                    type="text"
+                    placeholder="物件名稱"
+                    class="
+                      min-w-0 rounded-xs border border-neutral-200 px-3 py-2
+                      text-base outline-none
+                      focus:border-primary-300
+                    "
+                  >
+                  <input
+                    v-model.number="item.unitPrice"
+                    type="number"
+                    min="0"
+                    class="
+                      min-w-0 rounded-xs border border-neutral-200 px-3 py-2
+                      text-base outline-none
+                      focus:border-primary-300
+                    "
+                  >
+                  <div
+                    class="
+                      flex min-w-0 items-center gap-3 rounded-xs bg-neutral-100
+                      px-3 py-1
+                    "
+                  >
+                    <button
+                      type="button"
+                      class="
+                        flex shrink-0 items-center justify-center rounded-full
+                        p-2
+                        hover:bg-neutral-200
+                        disabled:cursor-not-allowed disabled:opacity-40
+                      "
+                      :disabled="item.count <= 1"
+                      @click="item.count--"
+                    >
+                      <Minus class="size-6" />
+                    </button>
+                    <span
+                      class="
+                        flex-1 text-center text-base tracking-[0.8px]
+                        text-neutral-900
+                      "
+                    >{{ item.count }}</span>
+                    <button
+                      type="button"
+                      class="
+                        flex shrink-0 items-center justify-center rounded-full
+                        p-2
+                        hover:bg-neutral-200
+                      "
+                      @click="item.count++"
+                    >
+                      <Plus class="size-6" />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="
+                      flex size-8 items-center justify-center rounded-full
+                      text-neutral-400
+                      hover:bg-neutral-100 hover:text-neutral-600
+                    "
+                    @click="removeAddonSpecialItem(i)"
+                  >
+                    <X class="size-4" />
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- 右側：費用摘要 -->
+          <div
+            class="
+              col-span-3 flex flex-col gap-4 border-l border-neutral-200 p-6
+            "
+          >
+            <span
+              class="text-base font-bold tracking-[0.8px] text-neutral-900"
+            >費用摘要</span>
+
+            <div class="flex flex-1 flex-col gap-3">
+              <div
+                v-if="!hasAddonSelection"
+                class="text-sm tracking-[0.7px] text-neutral-400"
+              >
+                尚未選擇任何項目
+              </div>
+              <div
+                v-for="item in selectedAddonItems"
+                :key="item.id"
+                class="flex flex-col gap-1 rounded-sm bg-neutral-100 p-4"
+              >
+                <span
+                  class="text-sm tracking-[0.7px] text-neutral-600"
+                >{{ item.name }} × {{ getAddonCount(item.id) }}</span>
+                <span
+                  class="
+                    text-base font-medium tracking-[0.8px] text-neutral-900
+                  "
+                >NT$ {{ (item.unitPrice * getAddonCount(item.id)).toLocaleString() }}</span>
+              </div>
+              <template
+                v-for="(item, i) in addonSpecialItems"
+                :key="`special-${i}`"
+              >
+                <div
+                  v-if="item.name && item.count > 0"
+                  class="flex flex-col gap-1 rounded-sm bg-neutral-100 p-4"
+                >
+                  <span
+                    class="text-sm tracking-[0.7px] text-neutral-600"
+                  >{{ item.name }} × {{ item.count }}</span>
+                  <span
+                    class="
+                      text-base font-medium tracking-[0.8px] text-neutral-900
+                    "
+                  >NT$ {{ (item.unitPrice * item.count).toLocaleString() }}</span>
+                </div>
+              </template>
+            </div>
+
+            <div
+              v-if="hasAddonSelection"
+              class="border-t border-neutral-200 pt-3"
+            >
+              <div class="flex items-center justify-between">
+                <span
+                  class="text-sm tracking-[0.7px] text-neutral-600"
+                >小計</span>
+                <span
+                  class="text-base font-bold tracking-[0.8px] text-primary-300"
+                >NT$ {{ addonSubtotal.toLocaleString() }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div
+          class="
+            flex shrink-0 gap-3 px-8 py-4
+            shadow-[0px_-4px_20px_0px_rgba(32,78,184,0.12)]
+          "
+        >
+          <button
+            type="button"
+            class="
+              flex-1 rounded-sm border border-neutral-200 bg-white py-2.5
+              text-base font-medium tracking-[0.8px] text-neutral-900
+              transition-colors
+              hover:bg-neutral-50
+            "
+            @click="closeAddonModal"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            :disabled="!hasAddonSelection || isSubmittingAddon"
+            class="
+              flex-1 rounded-sm bg-primary-400 py-2.5 text-base font-medium
+              tracking-[0.8px] text-white transition-colors
+              hover:bg-primary-500
+              disabled:cursor-not-allowed disabled:opacity-50
+            "
+            @click="submitAddon"
+          >
+            {{ isSubmittingAddon ? '新增中...' : '確認新增' }}
+          </button>
         </div>
       </div>
     </div>

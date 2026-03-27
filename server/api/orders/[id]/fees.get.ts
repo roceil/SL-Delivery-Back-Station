@@ -6,9 +6,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '缺少訂單 ID' })
   }
 
-  const numericId = Number.parseInt(id)
-  if (Number.isNaN(numericId)) {
-    throw createError({ statusCode: 400, message: '無效的訂單 ID' })
+  const numericAttempt = Number.parseInt(id)
+  let numericId: number
+  if (!Number.isNaN(numericAttempt)) {
+    numericId = numericAttempt
+  }
+  else {
+    const { data: orderRow } = await supabase.from('orders').select('id').eq('order_number', id).single()
+    if (!orderRow)
+      throw createError({ statusCode: 404, message: '找不到此訂單' })
+    numericId = orderRow.id
   }
 
   const { data, error } = await supabase

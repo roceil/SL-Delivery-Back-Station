@@ -420,7 +420,7 @@ const gridTemplateColumns = tableColumns.map(col => col.width).join(' ')
                 hover:bg-neutral-50
               "
               :style="{ gridTemplateColumns }"
-              @click="goToOrderDetail(order.id)"
+              @click="goToOrderDetail(order.orderNumber || order.id)"
             >
               <!-- Checkbox -->
               <div

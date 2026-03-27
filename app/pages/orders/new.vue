@@ -36,18 +36,65 @@ type OrderType = 'round-trip' | 'one-way' | 'merchant'
 
 const orderType = ref<OrderType>('round-trip')
 
-const orderTypes = [
-  { key: 'round-trip' as OrderType, label: '雙程套票', price: 'NT$ 250 / 件' },
-  { key: 'one-way' as OrderType, label: '單程運送', price: 'NT$ 130 / 件' },
-  { key: 'merchant' as OrderType, label: '商家代售', price: null },
-] as const
+interface DeliveryPlan {
+  id: number
+  name: string
+  price: number
+  enableStatus: string
+}
+
+interface MerchantOption {
+  id: number
+  name: string
+  isActive: boolean
+  usedCounts: number
+  maxUsageCounts: number | null
+}
+
+const { data: deliveryPlans } = await useFetch<DeliveryPlan[]>('/api/billing/pricing/delivery')
+const { data: merchants } = await useFetch<MerchantOption[]>('/api/merchants')
+
+const orderTypes = computed(() => {
+  const plans = deliveryPlans.value ?? []
+  return [
+    { key: 'round-trip' as OrderType, label: plans[0]?.name ?? '雙程套票', price: plans[0] ? `NT$ ${plans[0].price} / 件` : null },
+    { key: 'one-way' as OrderType, label: plans[1]?.name ?? '單程運送', price: plans[1] ? `NT$ ${plans[1].price} / 件` : null },
+    { key: 'merchant' as OrderType, label: '商家代售', price: null },
+  ]
+})
 
 // ── 雙程 / 單程 共用表單 ─────────────────────────────
 const luggageCount = ref(1)
 
 const hasAddons = ref(false)
-const largeLuggage = ref(0)
-const proEquipment = ref(0)
+
+interface AddonPlan {
+  id: number
+  name: string
+  unitPrice: number
+  type: string
+  enableStatus: string
+}
+
+const { data: addonPlans } = await useFetch<AddonPlan[]>('/api/billing/pricing/addon')
+
+// addonCounts: planId → 件數
+const addonCounts = ref<Record<number, number>>({})
+
+function getAddonCount(id: number) {
+  return addonCounts.value[id] ?? 0
+}
+
+function setAddonCount(id: number, delta: number) {
+  const current = getAddonCount(id)
+  const next = current + delta
+  if (next <= 0) {
+    delete addonCounts.value[id]
+  }
+  else {
+    addonCounts.value[id] = next
+  }
+}
 
 interface SpecialItem {
   name: string
@@ -114,22 +161,33 @@ watch(sameAsPassenger, (val) => {
 const notes = ref('')
 
 // ── 費用計算 ─────────────────────────────────────────
-const unitPrice = computed(() => orderType.value === 'round-trip' ? 250 : 130)
+const unitPrice = computed(() => {
+  const plans = deliveryPlans.value ?? []
+  if (orderType.value === 'round-trip')
+    return plans[0]?.price ?? 250
+  if (orderType.value === 'one-way')
+    return plans[1]?.price ?? 130
+  return 0
+})
 
 const baseSubtotal = computed(() => unitPrice.value * luggageCount.value)
 
-const largeLuggageCost = computed(() => largeLuggage.value * 50)
-const proEquipmentCost = computed(() => proEquipment.value * 100)
+const addonPlansCost = computed(() =>
+  (addonPlans.value ?? []).reduce((sum, plan) => {
+    return sum + (getAddonCount(plan.id) * plan.unitPrice)
+  }, 0),
+)
 const specialItemsCost = computed(() =>
   specialItems.value.reduce((sum, item) => sum + item.unitPrice * item.count, 0),
 )
-const addonSubtotal = computed(() =>
-  largeLuggageCost.value + proEquipmentCost.value + specialItemsCost.value,
-)
+const addonSubtotal = computed(() => addonPlansCost.value + specialItemsCost.value)
 const total = computed(() => baseSubtotal.value + (hasAddons.value ? addonSubtotal.value : 0))
 
 // ── 商家代售 表單 ────────────────────────────────────
 const merchantStore = ref('')
+const selectedMerchantName = computed(() =>
+  merchants.value?.find(m => String(m.id) === merchantStore.value)?.name ?? '',
+)
 const deliveryDate = ref('')
 const deliveryDateValue = computed<DateValue | undefined>({
   get: () => deliveryDate.value ? parseDate(deliveryDate.value) : undefined,
@@ -252,18 +310,21 @@ async function submitForm() {
             travelers: travelers.value,
           }
         : {
-            type: orderType.value,
+            servicePlan: orderType.value === 'round-trip' ? 'round_trip' : orderType.value === 'one-way' ? 'one_way' : orderType.value,
             luggageCount: luggageCount.value,
             hasAddons: hasAddons.value,
-            largeLuggage: largeLuggage.value,
-            proEquipment: proEquipment.value,
+            addonItems: hasAddons.value
+              ? (addonPlans.value ?? [])
+                  .filter(p => getAddonCount(p.id) > 0)
+                  .map(p => ({ id: p.id, name: p.name, unitPrice: p.unitPrice, count: getAddonCount(p.id) }))
+              : [],
             specialItems: specialItems.value,
             passengerType: passengerType.value,
-            passengerName: passengerName.value,
-            passengerPhone: passengerPhone.value,
+            lineName: passengerName.value,
+            phone: passengerPhone.value,
             pickupLocationId: pickupLocationId.value,
             deliveryLocationId: deliveryLocationId.value,
-            departureDate: departureDate.value,
+            deliveryDate: departureDate.value,
             returnDate: orderType.value === 'round-trip' ? returnDate.value : undefined,
             sameAsPassenger: sameAsPassenger.value,
             recipientName: recipientName.value,
@@ -470,37 +531,32 @@ async function submitForm() {
 
             <template v-if="hasAddons">
               <div class="flex gap-4">
-                <!-- 大型行李箱 -->
                 <div
+                  v-for="plan in addonPlans"
+                  :key="plan.id"
                   class="
                     flex flex-1 flex-col gap-3 rounded-sm border
                     border-neutral-200 p-4
                   "
                 >
                   <div class="flex items-start justify-between gap-3">
-                    <div class="flex flex-col gap-1">
-                      <div class="flex items-center gap-2">
-                        <div
-                          class="
-                            w-1 self-stretch rounded-xs bg-gradient-to-br
-                            from-[#4090e8] to-[#306cf7]
-                          "
-                        ></div>
-                        <p
-                          class="
-                            text-base font-bold tracking-[0.8px]
-                            text-neutral-900
-                          "
-                        >
-                          大型行李箱
-                        </p>
-                      </div>
-                      <p class="text-sm text-neutral-600">
-                        29 寸以上
+                    <div class="flex items-center gap-2">
+                      <div
+                        class="
+                          w-1 self-stretch rounded-xs bg-gradient-to-br
+                          from-[#4090e8] to-[#306cf7]
+                        "
+                      ></div>
+                      <p
+                        class="
+                          text-base font-bold tracking-[0.8px] text-neutral-900
+                        "
+                      >
+                        {{ plan.name }}
                       </p>
                     </div>
                     <p class="shrink-0 text-sm font-bold text-primary-300">
-                      +NT$ 50 / 件
+                      +NT$ {{ plan.unitPrice }} / 件
                     </p>
                   </div>
                   <div
@@ -517,8 +573,8 @@ async function submitForm() {
                         hover:bg-neutral-200
                         disabled:cursor-not-allowed disabled:opacity-40
                       "
-                      :disabled="largeLuggage <= 0"
-                      @click="largeLuggage--"
+                      :disabled="getAddonCount(plan.id) <= 0"
+                      @click="setAddonCount(plan.id, -1)"
                     >
                       <Minus class="size-6" />
                     </button>
@@ -527,7 +583,7 @@ async function submitForm() {
                         flex-1 text-center text-base tracking-[0.8px]
                         text-neutral-900
                       "
-                    >{{ largeLuggage }}</span>
+                    >{{ getAddonCount(plan.id) }}</span>
                     <button
                       type="button"
                       class="
@@ -535,79 +591,7 @@ async function submitForm() {
                         p-2
                         hover:bg-neutral-200
                       "
-                      @click="largeLuggage++"
-                    >
-                      <Plus class="size-6" />
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 專業裝備 -->
-                <div
-                  class="
-                    flex flex-1 flex-col gap-3 rounded-sm border
-                    border-neutral-200 p-4
-                  "
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex flex-col gap-1">
-                      <div class="flex items-center gap-2">
-                        <div
-                          class="
-                            w-1 self-stretch rounded-xs bg-gradient-to-br
-                            from-[#4090e8] to-[#306cf7]
-                          "
-                        ></div>
-                        <p
-                          class="
-                            text-base font-bold tracking-[0.8px]
-                            text-neutral-900
-                          "
-                        >
-                          專業裝備
-                        </p>
-                      </div>
-                      <p class="text-sm text-neutral-600">
-                        潛水裝備、高爾夫球袋
-                      </p>
-                    </div>
-                    <p class="shrink-0 text-sm font-bold text-primary-300">
-                      +NT$ 100 / 件
-                    </p>
-                  </div>
-                  <div
-                    class="
-                      flex items-center gap-3 rounded-xs bg-neutral-100 px-3
-                      py-1
-                    "
-                  >
-                    <button
-                      type="button"
-                      class="
-                        flex shrink-0 items-center justify-center rounded-full
-                        p-2
-                        hover:bg-neutral-200
-                        disabled:cursor-not-allowed disabled:opacity-40
-                      "
-                      :disabled="proEquipment <= 0"
-                      @click="proEquipment--"
-                    >
-                      <Minus class="size-6" />
-                    </button>
-                    <span
-                      class="
-                        flex-1 text-center text-base tracking-[0.8px]
-                        text-neutral-900
-                      "
-                    >{{ proEquipment }}</span>
-                    <button
-                      type="button"
-                      class="
-                        flex shrink-0 items-center justify-center rounded-full
-                        p-2
-                        hover:bg-neutral-200
-                      "
-                      @click="proEquipment++"
+                      @click="setAddonCount(plan.id, 1)"
                     >
                       <Plus class="size-6" />
                     </button>
@@ -676,8 +660,8 @@ async function submitForm() {
                       type="text"
                       placeholder="物件名稱"
                       class="
-                        rounded-xs border border-neutral-200 px-3 py-2 text-base
-                        outline-none
+                        min-w-0 rounded-xs border border-neutral-200 px-3 py-2
+                        text-base outline-none
                         focus:border-primary-300
                       "
                     >
@@ -686,15 +670,15 @@ async function submitForm() {
                       type="number"
                       min="0"
                       class="
-                        rounded-xs border border-neutral-200 px-3 py-2 text-base
-                        outline-none
+                        min-w-0 rounded-xs border border-neutral-200 px-3 py-2
+                        text-base outline-none
                         focus:border-primary-300
                       "
                     >
                     <div
                       class="
-                        flex items-center gap-3 rounded-xs bg-neutral-100 px-3
-                        py-1
+                        flex min-w-0 items-center gap-3 rounded-xs
+                        bg-neutral-100 px-3 py-1
                       "
                     >
                       <button
@@ -1081,10 +1065,21 @@ async function submitForm() {
                   <SelectContent>
                     <SelectGroup>
                       <SelectItem
-                        value="placeholder"
-                        disabled
+                        v-for="merchant in merchants"
+                        :key="merchant.id"
+                        :value="String(merchant.id)"
                       >
-                        請選擇商家
+                        <div
+                          class="flex w-full items-center justify-between"
+                        >
+                          <span>{{ merchant.name }}</span>
+                          <span
+                            v-if="merchant.maxUsageCounts !== null"
+                            class="shrink-0 text-xs text-neutral-700"
+                          >
+                            ｜剩於票數： {{ merchant.maxUsageCounts - merchant.usedCounts }} 張
+                          </span>
+                        </div>
                       </SelectItem>
                     </SelectGroup>
                   </SelectContent>
@@ -1352,20 +1347,18 @@ async function submitForm() {
               <p class="font-bold text-neutral-900">
                 加值服務
               </p>
-              <div
-                v-if="largeLuggage > 0"
-                class="flex justify-between text-neutral-600"
+              <template
+                v-for="plan in addonPlans"
+                :key="plan.id"
               >
-                <span>大型行李箱</span>
-                <span>{{ largeLuggage }} 件 · NT$ {{ largeLuggageCost }}</span>
-              </div>
-              <div
-                v-if="proEquipment > 0"
-                class="flex justify-between text-neutral-600"
-              >
-                <span>專業裝備</span>
-                <span>{{ proEquipment }} 件 · NT$ {{ proEquipmentCost }}</span>
-              </div>
+                <div
+                  v-if="getAddonCount(plan.id) > 0"
+                  class="flex justify-between text-neutral-600"
+                >
+                  <span>{{ plan.name }}</span>
+                  <span>{{ getAddonCount(plan.id) }} 件 · NT$ {{ getAddonCount(plan.id) * plan.unitPrice }}</span>
+                </div>
+              </template>
               <template
                 v-for="item in specialItems"
                 :key="item.name"
@@ -1429,7 +1422,7 @@ async function submitForm() {
                 <div class="flex flex-col gap-2 text-sm">
                   <div class="flex gap-2">
                     <span class="w-[76px] shrink-0 text-neutral-500">代售商家</span>
-                    <span class="text-neutral-900">{{ merchantStore || '—' }}</span>
+                    <span class="text-neutral-900">{{ selectedMerchantName || '—' }}</span>
                   </div>
                   <div class="flex gap-2">
                     <span class="w-[76px] shrink-0 text-neutral-500">本次旅客</span>
@@ -2023,7 +2016,7 @@ async function submitForm() {
                     代售商家
                   </p>
                   <p class="text-base font-bold text-neutral-900">
-                    {{ merchantStore || '—' }}
+                    {{ selectedMerchantName || '—' }}
                   </p>
                 </div>
 
