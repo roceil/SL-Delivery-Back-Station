@@ -187,8 +187,10 @@ export default defineEventHandler(async (event) => {
     }
 
     // 2. 建立 orders（第一層）
-    // 生成唯一的訂單編號（格式：lqYYMMDD + 3位數字序號）
     const orderNumber = await generateOrderNumber(supabase)
+
+    // 以 servicePlan key 判斷是否為雙程，決定是否建立回程任務
+    const isRoundTrip = body.servicePlan === 'round_trip'
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -204,11 +206,10 @@ export default defineEventHandler(async (event) => {
         service_plan: body.servicePlan || null,
         payment_status: 'unpaid',
         luggage_count: body.luggageCount,
-        departure_date: body.deliveryDate || null,
-        return_date: body.returnDate || null,
         recipient_name: body.recipientName || null,
         recipient_phone: body.recipientPhone || null,
         notes: body.notes || '',
+        is_round_trip: isRoundTrip,
       })
       .select(`
         id,
@@ -253,7 +254,42 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 3. 建立費用明細
+    // 3. 建立任務（order_tasks）
+    const tasksToInsert: Array<{
+      order_id: number
+      leg: string
+      status: number
+      start_point: number
+      end_point: number
+      task_date: string | null
+    }> = [
+      {
+        order_id: order.id,
+        leg: 'outbound',
+        status: 1, // pending
+        start_point: pickupLocationId,
+        end_point: deliveryLocationId,
+        task_date: body.deliveryDate,
+      },
+    ]
+
+    if (isRoundTrip) {
+      tasksToInsert.push({
+        order_id: order.id,
+        leg: 'inbound',
+        status: 1, // pending
+        start_point: deliveryLocationId,
+        end_point: pickupLocationId,
+        task_date: body.returnDate,
+      })
+    }
+
+    const { error: tasksError } = await supabase.from('order_tasks').insert(tasksToInsert)
+    if (tasksError) {
+      console.error('建立訂單任務失敗:', tasksError)
+    }
+
+    // 4. 建立費用明細
     const feeRows: Array<{
       order_id: number
       item_type: string
@@ -306,6 +342,27 @@ export default defineEventHandler(async (event) => {
       const { error: feesError } = await supabase.from('order_fees').insert(feeRows)
       if (feesError) {
         console.error('建立費用明細失敗:', feesError)
+      }
+    }
+
+    // 5. 商家代售：扣除票券數量（used_counts += luggageCount）
+    if (body.merchantStore && body.luggageCount) {
+      const merchantId = Number.parseInt(body.merchantStore)
+      const { data: merchantData } = await supabase
+        .from('merchants')
+        .select('used_counts')
+        .eq('id', merchantId)
+        .single()
+
+      if (merchantData) {
+        const { error: merchantUpdateError } = await supabase
+          .from('merchants')
+          .update({ used_counts: merchantData.used_counts + body.luggageCount })
+          .eq('id', merchantId)
+
+        if (merchantUpdateError) {
+          console.error('更新商家票券數量失敗:', merchantUpdateError)
+        }
       }
     }
 

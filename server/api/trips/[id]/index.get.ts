@@ -53,13 +53,13 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 查詢該行程的所有訂單
-  const { data: scheduleOrders, error: scheduleOrdersError } = await supabase
-    .from('schedule_orders')
+  // 查詢此行程的所有任務，取得訂單 IDs
+  const { data: tasks } = await supabase
+    .from('order_tasks')
     .select('order_id')
     .eq('schedule_id', scheduleId)
 
-  const orderIds = scheduleOrders?.map((so: any) => so.order_id) || []
+  const orderIds = [...new Set(tasks?.map((t: any) => t.order_id) || [])]
 
   const courier = Array.isArray(schedule.courier) ? schedule.courier[0] : schedule.courier
   const status = Array.isArray(schedule.status) ? schedule.status[0] : schedule.status

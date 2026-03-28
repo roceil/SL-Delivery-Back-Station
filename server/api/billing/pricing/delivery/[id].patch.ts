@@ -11,6 +11,8 @@ export default defineEventHandler(async (event) => {
     updates.unit_price = body.price
   if (body.enableStatus !== undefined)
     updates.is_active = body.enableStatus === 'active'
+  if (body.isRoundTrip !== undefined)
+    updates.is_round_trip = body.isRoundTrip
 
   if (Object.keys(updates).length === 0) {
     throw createError({ statusCode: 400, message: '未提供任何更新欄位' })
@@ -23,7 +25,7 @@ export default defineEventHandler(async (event) => {
     .update(updates)
     .eq('id', id)
     .eq('plan_type', 'delivery')
-    .select('id, name, unit_price, is_active')
+    .select('id, name, unit_price, is_active, is_round_trip')
     .single()
 
   if (error) {
@@ -37,6 +39,7 @@ export default defineEventHandler(async (event) => {
     id: data.id,
     name: data.name,
     price: data.unit_price,
+    isRoundTrip: data.is_round_trip,
     enableStatus: data.is_active ? 'active' : 'inactive',
   }
 })

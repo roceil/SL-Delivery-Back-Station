@@ -10,14 +10,10 @@ export default defineEventHandler(async (event) => {
       order_number,
       platform_id,
       platform_type,
-      schedule_id,
-      return_schedule_id,
       status,
       service_plan,
       payment_status,
       luggage_count,
-      departure_date,
-      return_date,
       notes,
       created_at,
       start_point:stations!orders_start_point_fkey (id, name, address),
@@ -36,6 +32,22 @@ export default defineEventHandler(async (event) => {
   if (!ordersData || ordersData.length === 0) {
     return []
   }
+
+  // 查詢所有訂單的任務資料
+  const orderIds = ordersData.map(o => o.id)
+  const { data: tasksData } = await supabase
+    .from('order_tasks')
+    .select('order_id, leg, task_date, schedule_id')
+    .in('order_id', orderIds)
+
+  const outboundTaskMap = new Map<number, { task_date: string | null, schedule_id: number | null }>()
+  const inboundTaskMap = new Map<number, { task_date: string | null, schedule_id: number | null }>()
+  tasksData?.forEach((task) => {
+    if (task.leg === 'outbound')
+      outboundTaskMap.set(task.order_id, task)
+    else
+      inboundTaskMap.set(task.order_id, task)
+  })
 
   // 分類訂單 ID
   const normalOrderIds: string[] = []
@@ -136,6 +148,8 @@ export default defineEventHandler(async (event) => {
     const orderStatus = Array.isArray(order.order_status) ? order.order_status[0] : order.order_status
     const startPoint = Array.isArray(order.start_point) ? order.start_point[0] : order.start_point
     const endPoint = Array.isArray(order.end_point) ? order.end_point[0] : order.end_point
+    const outboundTask = outboundTaskMap.get(order.id)
+    const inboundTask = inboundTaskMap.get(order.id)
 
     return {
       id: order.id.toString(),
@@ -143,15 +157,15 @@ export default defineEventHandler(async (event) => {
       category: orderCategory,
       lineName,
       phone,
-      deliveryDate: order.departure_date,
-      returnDate: order.return_date,
+      deliveryDate: outboundTask?.task_date || null,
+      returnDate: inboundTask?.task_date || null,
       pickupTime,
       luggageCount: order.luggage_count || 0,
       servicePlan: order.service_plan,
       paymentStatus: order.payment_status,
       status: orderStatus?.status || 'pending',
-      scheduleId: order.schedule_id?.toString() || null,
-      returnScheduleId: order.return_schedule_id?.toString() || null,
+      scheduleId: outboundTask?.schedule_id?.toString() || null,
+      returnScheduleId: inboundTask?.schedule_id?.toString() || null,
       pickupLocation: {
         id: startPoint?.id?.toString() || '',
         name: startPoint?.name || '',

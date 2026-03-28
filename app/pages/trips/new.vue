@@ -25,6 +25,7 @@ interface AvailableOrder {
   luggageCount: number
   area: string
   departureDate: string
+  leg: 'outbound' | 'inbound'
   pickupLocation: { id: string, name: string }
   deliveryLocation: { id: string, name: string }
   notes?: string
@@ -52,12 +53,22 @@ const form = ref({
   notes: '',
 })
 
-const { data: availableOrdersData } = await useFetch<AvailableOrder[]>('/api/orders/available')
+const availableOrdersQuery = computed(() =>
+  form.value.scheduledDate ? { date: form.value.scheduledDate } : {},
+)
+const { data: availableOrdersData } = await useFetch<AvailableOrder[]>('/api/orders/available', {
+  query: availableOrdersQuery,
+})
 const availableOrders = computed(() => availableOrdersData.value ?? [])
 
 // 彈窗狀態
 const showModal = ref(false)
 const tempSelected = ref<string[]>([])
+
+watch(() => form.value.scheduledDate, () => {
+  form.value.selectedOrders = []
+  tempSelected.value = []
+})
 const modalKeyword = ref('')
 const modalArea = ref('')
 const modalDestination = ref('')
@@ -344,11 +355,15 @@ async function submitForm() {
             </div>
             <button
               type="button"
+              :disabled="!form.scheduledDate"
               class="
-                flex items-center gap-1.5 rounded-sm border border-primary-400
-                px-4 py-2 text-base font-medium tracking-[0.8px]
-                text-primary-400 transition-colors
-                hover:bg-neutral-50
+                flex items-center gap-1.5 rounded-sm border px-4 py-2 text-base
+                font-medium tracking-[0.8px] transition-colors
+              "
+              :class="
+                form.scheduledDate
+                  ? 'border-primary-400 text-primary-400 hover:bg-neutral-50'
+                  : 'cursor-not-allowed border-neutral-300 text-neutral-300'
               "
               @click="openModal"
             >
@@ -397,12 +412,12 @@ async function submitForm() {
                         tracking-[0.6px]
                       "
                       :class="
-                        order.deliveryLocation.name.includes('碼頭')
+                        order.leg === 'inbound'
                           ? 'bg-[#e9f4ef] text-[#229464]'
                           : 'bg-[#eaf5ff] text-[#3087db]'
                       "
                     >
-                      {{ order.deliveryLocation.name.includes('碼頭') ? '回程' : '去程' }}
+                      {{ order.leg === 'inbound' ? '回程' : '去程' }}
                     </span>
                     <div class="flex flex-1 items-center justify-end gap-1">
                       <button
@@ -808,7 +823,7 @@ async function submitForm() {
               新增訂單
             </h4>
             <span class="text-base tracking-[0.8px] text-neutral-600">
-              目前有 {{ availableOrders.length }} 筆訂單可供分配
+              {{ form.scheduledDate }} 共有 {{ availableOrders.length }} 筆任務可供分配
             </span>
           </div>
 

@@ -10,6 +10,7 @@ export const ORDER_STATUS_MAP: Record<string, StatusBadge> = {
   pending: { type: 'red', label: '待確認' },
   confirmed: { type: 'orange', label: '待交付' },
   assigned: { type: 'blue', label: '已收件' },
+  received: { type: 'blue', label: '已收件' },
   in_delivery: { type: 'blue', label: '運送中' },
   delivered: { type: 'green', label: '已送達' },
   completed: { type: 'gray', label: '已完成' },

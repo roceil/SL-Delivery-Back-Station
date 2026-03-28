@@ -56,31 +56,35 @@ export default defineEventHandler(async (_event) => {
   // 查詢每個行程的訂單統計資訊
   const tripsWithStats = await Promise.all(
     schedulesData.map(async (schedule): Promise<TripResponse> => {
-      interface ScheduleOrderRow {
+      interface TaskRow {
+        order_id: number
+        leg: string
         order: {
           id: number
-          end_point: {
-            area: string
-          } | null
+          luggage_count: number
+          start_point: { area: string } | null
+          end_point: { area: string } | null
         } | null
       }
 
-      // 查詢該行程的所有訂單
-      const { data: scheduleOrders, error: scheduleOrdersError } = await supabase
-        .from('schedule_orders')
+      // 查詢此行程的所有任務（去程 + 回程）
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('order_tasks')
         .select(`
+          order_id,
+          leg,
           order:orders (
             id,
-            end_point:stations!orders_end_point_fkey (
-              area
-            )
+            luggage_count,
+            start_point:stations!orders_start_point_fkey (area),
+            end_point:stations!orders_end_point_fkey (area)
           )
         `)
         .eq('schedule_id', schedule.id)
-        .returns<ScheduleOrderRow[]>()
+        .returns<TaskRow[]>()
 
-      if (scheduleOrdersError) {
-        console.error('查詢行程訂單失敗:', scheduleOrdersError)
+      if (tasksError) {
+        console.error('查詢行程任務失敗:', tasksError)
         return {
           id: schedule.id.toString(),
           name: schedule.name,
@@ -99,85 +103,25 @@ export default defineEventHandler(async (_event) => {
         }
       }
 
-      const orders = scheduleOrders || []
-
-      // 獲取訂單 IDs
-      const orderIds = orders
-        .map(so => so.order?.id)
-        .filter((id): id is number => id !== null && id !== undefined)
-
-      // 如果有訂單，查詢訂單詳情以獲取行李數量
-      let totalLuggage = 0
+      const tasks = tasksData || []
       const areas: string[] = []
+      let totalLuggage = 0
 
-      if (orderIds.length > 0) {
-        interface OrderRow {
-          id: number
-          platform_type: number
-          platform_id: string
-          end_point: {
-            area: string
-          } | null
-        }
+      tasks.forEach((task) => {
+        const order = task.order
+        if (!order)
+          return
 
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('orders')
-          .select(`
-            id,
-            platform_type,
-            platform_id,
-            end_point:stations!orders_end_point_fkey (
-              area
-            )
-          `)
-          .in('id', orderIds)
-          .returns<OrderRow[]>()
+        // 依 leg 決定送達地區：inbound 送達的是 start_point，outbound 是 end_point
+        const deliveryArea = task.leg === 'inbound'
+          ? order.start_point?.area
+          : order.end_point?.area
 
-        if (!ordersError && ordersData) {
-          // 收集所有的 platform_id 並按類型分組
-          const normalOrderIds: string[] = []
-          const netOrderIds: string[] = []
+        if (deliveryArea && !areas.includes(deliveryArea))
+          areas.push(deliveryArea)
 
-          ordersData.forEach((order) => {
-            // 收集區域
-            if (order.end_point?.area && !areas.includes(order.end_point.area)) {
-              areas.push(order.end_point.area)
-            }
-
-            // 分類訂單 ID
-            if (order.platform_type === 4) {
-              normalOrderIds.push(order.platform_id)
-            }
-            else if (order.platform_type === 3) {
-              netOrderIds.push(order.platform_id)
-            }
-          })
-
-          // 查詢 normal_orders 的數量
-          if (normalOrderIds.length > 0) {
-            const { data: normalOrders, error: normalError } = await supabase
-              .from('normal_orders')
-              .select('quantity')
-              .in('id', normalOrderIds)
-
-            if (!normalError && normalOrders) {
-              totalLuggage += normalOrders.reduce((sum, no) => sum + (no.quantity || 0), 0)
-            }
-          }
-
-          // 查詢 net_orders 的數量
-          if (netOrderIds.length > 0) {
-            const { data: netOrders, error: netError } = await supabase
-              .from('net_orders')
-              .select('quantity')
-              .in('id', netOrderIds)
-
-            if (!netError && netOrders) {
-              totalLuggage += netOrders.reduce((sum, no) => sum + (no.quantity || 0), 0)
-            }
-          }
-        }
-      }
+        totalLuggage += order.luggage_count || 0
+      })
 
       return {
         id: schedule.id.toString(),
@@ -191,7 +135,7 @@ export default defineEventHandler(async (_event) => {
         dispatchedAt: schedule.dispatched_at,
         completedAt: schedule.completed_at,
         trackingUrl: schedule.tracking_url,
-        orderCount: orders.length,
+        orderCount: tasks.length,
         totalLuggage,
         areas: areas.sort(),
       }

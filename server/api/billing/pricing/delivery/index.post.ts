@@ -14,8 +14,9 @@ export default defineEventHandler(async (event) => {
       name: body.name,
       unit_price: body.price,
       is_active: body.enableStatus !== 'inactive',
+      is_round_trip: body.isRoundTrip ?? false,
     })
-    .select('id, name, unit_price, is_active')
+    .select('id, name, unit_price, is_active, is_round_trip')
     .single()
 
   if (error) {
@@ -29,6 +30,7 @@ export default defineEventHandler(async (event) => {
     id: data.id,
     name: data.name,
     price: data.unit_price,
+    isRoundTrip: data.is_round_trip,
     enableStatus: data.is_active ? 'active' : 'inactive',
   }
 })

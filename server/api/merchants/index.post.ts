@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
       used_counts: 0,
       max_usage_counts: body.maxUsageCounts || null,
       remarks: body.remarks || null,
+      latitude: body.latitude ? Number.parseFloat(body.latitude) : null,
+      longitude: body.longitude ? Number.parseFloat(body.longitude) : null,
     })
     .select()
     .single()

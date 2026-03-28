@@ -3,7 +3,7 @@ export default defineEventHandler(async (_event) => {
 
   const { data, error } = await supabase
     .from('service_plans')
-    .select('id, name, unit_price, is_active')
+    .select('id, name, unit_price, is_active, is_round_trip')
     .eq('plan_type', 'delivery')
     .order('id', { ascending: true })
 
@@ -18,6 +18,7 @@ export default defineEventHandler(async (_event) => {
     id: row.id,
     name: row.name,
     price: row.unit_price,
+    isRoundTrip: row.is_round_trip,
     enableStatus: row.is_active ? 'active' : 'inactive',
   }))
 })

@@ -14,23 +14,24 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '無效的參數' })
   }
 
-  // 查詢此行程的 schedule_orders（含完成狀態）
-  const { data: scheduleOrders, error: soError } = await supabase
-    .from('schedule_orders')
+  // 查詢此行程的去程任務（含完成狀態）
+  const { data: tasks, error: tasksError } = await supabase
+    .from('order_tasks')
     .select('order_id, is_completed')
     .eq('schedule_id', scheduleId)
+    .eq('leg', 'outbound')
 
-  if (soError) {
-    throw createError({ statusCode: 500, message: `查詢行程訂單失敗: ${soError.message}` })
+  if (tasksError) {
+    throw createError({ statusCode: 500, message: `查詢行程任務失敗: ${tasksError.message}` })
   }
 
-  if (!scheduleOrders || scheduleOrders.length === 0) {
+  if (!tasks || tasks.length === 0) {
     throw createError({ statusCode: 404, message: '此行程沒有訂單' })
   }
 
-  const orderIds = scheduleOrders.map((so: any) => so.order_id)
+  const orderIds = tasks.map((t: any) => t.order_id)
   const completedMap = new Map<number, boolean>(
-    scheduleOrders.map((so: any) => [so.order_id, so.is_completed]),
+    tasks.map((t: any) => [t.order_id, t.is_completed]),
   )
 
   // 查詢訂單詳情

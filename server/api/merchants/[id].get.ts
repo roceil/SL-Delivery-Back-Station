@@ -48,6 +48,8 @@ export default defineEventHandler(async (event) => {
     usedCounts: merchant.used_counts,
     maxUsageCounts: merchant.max_usage_counts,
     remarks: merchant.remarks,
+    latitude: merchant.latitude ?? null,
+    longitude: merchant.longitude ?? null,
     createdAt: merchant.created_at,
     updatedAt: merchant.updated_at,
   }

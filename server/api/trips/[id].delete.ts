@@ -32,28 +32,38 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 將該行程相關訂單的 schedule_id 設為 null，狀態改回已確認
-    const { error: updateOrdersError } = await supabase
-      .from('orders')
-      .update({
-        schedule_id: null,
-        status: 2, // confirmed
-        updated_at: new Date().toISOString(),
-      })
+    // 查詢此行程的所有去程任務，取得受影響的訂單 IDs
+    const { data: affectedTasks } = await supabase
+      .from('order_tasks')
+      .select('order_id')
+      .eq('schedule_id', scheduleId)
+      .eq('leg', 'outbound')
+
+    const affectedOrderIds = affectedTasks?.map(t => t.order_id) || []
+
+    // 清除所有任務的 schedule_id（含去程與回程）
+    const { error: clearTasksError } = await supabase
+      .from('order_tasks')
+      .update({ schedule_id: null })
       .eq('schedule_id', scheduleId)
 
-    if (updateOrdersError) {
-      console.error('更新訂單狀態失敗:', updateOrdersError)
+    if (clearTasksError) {
+      console.error('清除任務行程指派失敗:', clearTasksError)
     }
 
-    // 刪除行程訂單關聯
-    const { error: deleteScheduleOrdersError } = await supabase
-      .from('schedule_orders')
-      .delete()
-      .eq('schedule_id', scheduleId)
+    // 將受影響訂單狀態改回已確認
+    if (affectedOrderIds.length > 0) {
+      const { error: updateOrdersError } = await supabase
+        .from('orders')
+        .update({
+          status: 2, // confirmed
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', affectedOrderIds)
 
-    if (deleteScheduleOrdersError) {
-      console.error('刪除行程訂單關聯失敗:', deleteScheduleOrdersError)
+      if (updateOrdersError) {
+        console.error('更新訂單狀態失敗:', updateOrdersError)
+      }
     }
 
     // 刪除行程

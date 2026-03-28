@@ -13,13 +13,10 @@ export default defineEventHandler(async (event) => {
     platform_type,
     voucher_id,
     user_id,
-    schedule_id,
     status,
     service_plan,
     payment_status,
     luggage_count,
-    departure_date,
-    return_date,
     recipient_name,
     recipient_phone,
     notes,
@@ -40,6 +37,15 @@ export default defineEventHandler(async (event) => {
   if (error || !orderData) {
     throw createError({ statusCode: 404, message: '找不到此訂單' })
   }
+
+  // 查詢任務資料（去程/回程）
+  const { data: tasksData } = await supabase
+    .from('order_tasks')
+    .select('leg, task_date, schedule_id')
+    .eq('order_id', orderData.id)
+
+  const outboundTask = tasksData?.find(t => t.leg === 'outbound')
+  const inboundTask = tasksData?.find(t => t.leg === 'inbound')
 
   let orderCategory = '未知'
   let lineName = '未提供'
@@ -109,8 +115,8 @@ export default defineEventHandler(async (event) => {
     category: orderCategory,
     lineName,
     phone,
-    deliveryDate: orderData.departure_date,
-    returnDate: orderData.return_date,
+    deliveryDate: outboundTask?.task_date || null,
+    returnDate: inboundTask?.task_date || null,
     pickupTime,
     luggageCount: orderData.luggage_count || 0,
     servicePlan: orderData.service_plan,
@@ -118,7 +124,8 @@ export default defineEventHandler(async (event) => {
     recipientName: orderData.recipient_name,
     recipientPhone: orderData.recipient_phone,
     status: orderStatus?.status || 'pending',
-    scheduleId: orderData.schedule_id?.toString() || null,
+    scheduleId: outboundTask?.schedule_id?.toString() || null,
+    returnScheduleId: inboundTask?.schedule_id?.toString() || null,
     pickupLocation: {
       id: startPoint?.id?.toString() || '',
       name: startPoint?.name || '',

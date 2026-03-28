@@ -217,6 +217,7 @@ interface DeliveryPlan {
   id: number
   name: string
   price: number
+  isRoundTrip: boolean
   enableStatus: 'active' | 'inactive'
 }
 
@@ -293,6 +294,7 @@ const editingDeliveryId = ref<number | null>(null)
 const deliveryForm = reactive({
   name: '',
   price: '' as number | '',
+  isRoundTrip: false,
   enableStatus: false,
 })
 
@@ -300,6 +302,7 @@ function openDeliveryModal() {
   editingDeliveryId.value = null
   deliveryForm.name = ''
   deliveryForm.price = ''
+  deliveryForm.isRoundTrip = false
   deliveryForm.enableStatus = false
   showDeliveryModal.value = true
 }
@@ -308,6 +311,7 @@ function openEditDeliveryModal(plan: DeliveryPlan) {
   editingDeliveryId.value = plan.id
   deliveryForm.name = plan.name
   deliveryForm.price = plan.price
+  deliveryForm.isRoundTrip = plan.isRoundTrip
   deliveryForm.enableStatus = plan.enableStatus === 'active'
   showDeliveryModal.value = true
 }
@@ -319,6 +323,7 @@ async function submitDelivery() {
   const body = {
     name: deliveryForm.name,
     price: deliveryForm.price,
+    isRoundTrip: deliveryForm.isRoundTrip,
     enableStatus: deliveryForm.enableStatus ? 'active' : 'inactive',
   }
 
@@ -802,6 +807,12 @@ async function submitDelivery() {
                   :label="plan.enableStatus === 'active' ? '啟用中' : '停用中'"
                   size="sm"
                 />
+                <Badge
+                  v-if="plan.isRoundTrip"
+                  type="blue"
+                  label="雙程"
+                  size="sm"
+                />
               </div>
 
               <!-- 價格 -->
@@ -1037,6 +1048,37 @@ async function submitDelivery() {
                 focus:border-neutral-400
               "
             >
+          </div>
+
+          <!-- 雙程方案 -->
+          <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium tracking-[0.7px] text-neutral-600">雙程方案</span>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                class="
+                  relative inline-flex h-6 w-11 shrink-0 cursor-pointer
+                  rounded-full border-2 border-transparent transition-colors
+                "
+                :class="deliveryForm.isRoundTrip ? 'bg-primary-400' : `
+                  bg-neutral-300
+                `"
+                @click="deliveryForm.isRoundTrip = !deliveryForm.isRoundTrip"
+              >
+                <span
+                  class="
+                    pointer-events-none inline-block size-5 rounded-full
+                    bg-white shadow-sm transition-transform
+                  "
+                  :class="deliveryForm.isRoundTrip ? 'translate-x-5' : `
+                    translate-x-0
+                  `"
+                ></span>
+              </button>
+              <span class="text-sm font-medium tracking-[0.7px] text-neutral-900">
+                {{ deliveryForm.isRoundTrip ? '是（系統將自動建立去程＋回程任務）' : '否（單程任務）' }}
+              </span>
+            </div>
           </div>
 
           <!-- 啟用狀態 -->

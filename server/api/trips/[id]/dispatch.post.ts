@@ -90,14 +90,15 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 更新該行程下所有訂單的狀態為配送中
-    const { data: scheduleOrders } = await supabase
-      .from('schedule_orders')
+    // 查詢此行程的去程任務，取得訂單 IDs
+    const { data: tasks } = await supabase
+      .from('order_tasks')
       .select('order_id')
       .eq('schedule_id', scheduleId)
+      .eq('leg', 'outbound')
 
-    if (scheduleOrders && scheduleOrders.length > 0) {
-      const orderIds = scheduleOrders.map(so => so.order_id)
+    if (tasks && tasks.length > 0) {
+      const orderIds = tasks.map(t => t.order_id)
       await supabase
         .from('orders')
         .update({ status: 4 }) // in_delivery

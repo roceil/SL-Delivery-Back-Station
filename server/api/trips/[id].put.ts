@@ -109,56 +109,63 @@ export default defineEventHandler(async (event) => {
 
     // 處理訂單更新
     if (body.selectedOrders !== undefined) {
-      // 先刪除現有的訂單關聯
-      await supabase
-        .from('schedule_orders')
-        .delete()
+      // 查詢目前此行程的去程任務（取得舊訂單 IDs）
+      const { data: oldTasks } = await supabase
+        .from('order_tasks')
+        .select('order_id')
         .eq('schedule_id', scheduleId)
+        .eq('leg', 'outbound')
 
-      // 將舊訂單的 schedule_id 設為 null
-      await supabase
-        .from('orders')
-        .update({ schedule_id: null, status: 2 }) // 改為已確認
-        .eq('schedule_id', scheduleId)
+      const oldOrderIds = oldTasks?.map(t => t.order_id) || []
 
-      // 如果有新的訂單，建立新的關聯
+      // 清除舊的任務指派
+      if (oldOrderIds.length > 0) {
+        await supabase
+          .from('order_tasks')
+          .update({ schedule_id: null })
+          .eq('schedule_id', scheduleId)
+          .eq('leg', 'outbound')
+
+        // 舊訂單狀態改回已確認
+        await supabase
+          .from('orders')
+          .update({ status: 2 })
+          .in('id', oldOrderIds)
+      }
+
+      // 指派新訂單
       if (body.selectedOrders.length > 0) {
-        const orderIds = body.selectedOrders.map((id: string) => Number.parseInt(id)).filter((id: number) => !Number.isNaN(id))
+        const newOrderIds = body.selectedOrders.map((id: string) => Number.parseInt(id)).filter((id: number) => !Number.isNaN(id))
 
-        if (orderIds.length > 0) {
-          // 驗證訂單是否存在
-          const { data: orders, error: ordersError } = await supabase
-            .from('orders')
-            .select('id')
-            .in('id', orderIds)
+        // 驗證訂單是否存在
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id')
+          .in('id', newOrderIds)
 
-          if (ordersError || !orders || orders.length !== orderIds.length) {
-            throw createError({
-              statusCode: 400,
-              message: '部分訂單不存在',
-            })
-          }
-
-          // 建立新的關聯
-          const scheduleOrdersData = orderIds.map((orderId: number) => ({
-            schedule_id: scheduleId,
-            order_id: orderId,
-          }))
-
-          const { error: scheduleOrdersError } = await supabase
-            .from('schedule_orders')
-            .insert(scheduleOrdersData)
-
-          if (scheduleOrdersError) {
-            console.error('建立行程訂單關聯失敗:', scheduleOrdersError)
-          }
-
-          // 更新訂單狀態為 "已分配行程"
-          await supabase
-            .from('orders')
-            .update({ schedule_id: scheduleId, status: 3 }) // assigned
-            .in('id', orderIds)
+        if (ordersError || !orders || orders.length !== newOrderIds.length) {
+          throw createError({
+            statusCode: 400,
+            message: '部分訂單不存在',
+          })
         }
+
+        // 更新去程任務的 schedule_id
+        const { error: tasksError } = await supabase
+          .from('order_tasks')
+          .update({ schedule_id: scheduleId })
+          .in('order_id', newOrderIds)
+          .eq('leg', 'outbound')
+
+        if (tasksError) {
+          console.error('指派任務至行程失敗:', tasksError)
+        }
+
+        // 更新訂單狀態為 "已分配行程"
+        await supabase
+          .from('orders')
+          .update({ status: 3 }) // assigned
+          .in('id', newOrderIds)
       }
     }
 

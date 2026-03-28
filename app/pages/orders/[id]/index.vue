@@ -17,6 +17,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Printer,
   Store,
   Ticket,
   Truck,
@@ -90,14 +91,26 @@ onMounted(async () => {
   silentPrintAvailable.value = await checkPrintService()
 })
 
-// 一般列印（顯示預覽）
-function handlePrint() {
+// 一般列印（顯示預覽）並更新狀態為已收件
+async function handlePrint() {
   const canvas = document.querySelector('.print-canvas canvas') as HTMLCanvasElement
 
   if (!canvas) {
     // eslint-disable-next-line no-alert
     alert('找不到列印內容，請重新整理頁面')
     return
+  }
+
+  // 更新訂單狀態為已收件
+  try {
+    await ($fetch as any)(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      body: { status: 9 },
+    })
+    await refreshNuxtData()
+  }
+  catch (err) {
+    console.error('更新收件狀態失敗:', err)
   }
 
   const dataUrl = canvas.toDataURL('image/png')
@@ -356,7 +369,6 @@ async function cancelOrder() {
     return
   isCancelling.value = true
   try {
-    // eslint-disable-next-line ts/no-explicit-any
     await ($fetch as any)(`/api/orders/${orderId}`, {
       method: 'PATCH',
       body: { status: 6 },
@@ -378,7 +390,7 @@ async function confirmOrder() {
   try {
     await ($fetch as any)(`/api/orders/${orderId}`, {
       method: 'PATCH',
-      body: { status: 2 },
+      body: { status: 2, paymentStatus: 'paid' },
     })
     await refreshNuxtData()
   }
@@ -397,6 +409,7 @@ const completedStepsCount = computed(() => {
     pending: 1,
     confirmed: 2,
     assigned: 3,
+    received: 3,
     in_delivery: 4,
     delivered: 5,
     completed: 6,
@@ -1429,6 +1442,15 @@ async function submitAddon() {
               >
                 <Check class="size-4" />
                 {{ isConfirming ? '確認中...' : '確認訂單' }}
+              </Button>
+              <Button
+                v-if="order.paymentStatus === 'paid'"
+                variant="outline"
+                class="w-full justify-center"
+                @click="handlePrint"
+              >
+                <Printer class="size-4" />
+                立即列印
               </Button>
               <Button
                 variant="outline"

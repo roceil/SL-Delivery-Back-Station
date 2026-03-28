@@ -31,24 +31,23 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 查詢該行程的所有訂單
-  const { data: scheduleOrders, error: scheduleOrdersError } = await supabase
-    .from('schedule_orders')
-    .select('order_id')
+  // 查詢此行程的所有任務（含 leg 欄位以判斷方向）
+  const { data: tasks, error: tasksError } = await supabase
+    .from('order_tasks')
+    .select('id, order_id, leg, task_date')
     .eq('schedule_id', scheduleId)
 
-  if (scheduleOrdersError) {
+  if (tasksError) {
     throw createError({
       statusCode: 500,
-      message: `查詢行程訂單失敗: ${scheduleOrdersError.message}`,
+      message: `查詢行程任務失敗: ${tasksError.message}`,
     })
   }
 
-  if (!scheduleOrders || scheduleOrders.length === 0) {
+  if (!tasks || tasks.length === 0)
     return []
-  }
 
-  const orderIds = scheduleOrders.map(so => so.order_id)
+  const orderIds = [...new Set(tasks.map(t => t.order_id))]
 
   // 查詢訂單詳情
   const { data: ordersData, error: ordersError } = await supabase
@@ -57,7 +56,7 @@ export default defineEventHandler(async (event) => {
       id,
       platform_type,
       platform_id,
-      status,
+      luggage_count,
       notes,
       created_at,
       start_point:stations!orders_start_point_fkey (
@@ -86,29 +85,26 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (!ordersData || ordersData.length === 0) {
+  if (!ordersData || ordersData.length === 0)
     return []
-  }
 
   // 分類訂單 ID
   const normalOrderIds: string[] = []
   const netOrderIds: string[] = []
 
   ordersData.forEach((order) => {
-    if (order.platform_type === 4) {
+    if (order.platform_type === 4)
       normalOrderIds.push(order.platform_id)
-    }
-    else if (order.platform_type === 3) {
+    else if (order.platform_type === 3)
       netOrderIds.push(order.platform_id)
-    }
   })
 
-  // 查詢 normal_orders
+  // 查詢 normal_orders（取得聯絡人資訊與取件時間）
   const normalOrdersMap = new Map()
   if (normalOrderIds.length > 0) {
     const { data: normalOrdersData, error: normalError } = await supabase
       .from('normal_orders')
-      .select('id, departure_date, receive_time, quantity, contacts')
+      .select('id, receive_time, contacts')
       .in('id', normalOrderIds)
 
     if (!normalError && normalOrdersData) {
@@ -123,7 +119,7 @@ export default defineEventHandler(async (event) => {
   if (netOrderIds.length > 0) {
     const { data: netOrdersData, error: netError } = await supabase
       .from('net_orders')
-      .select('id, platform_type, departure_date, quantity, contacts')
+      .select('id, platform_type, contacts')
       .in('id', netOrderIds)
 
     if (!netError && netOrdersData) {
@@ -133,78 +129,79 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 組合資料
-  const orders = ordersData.map((order: any) => {
+  const orderMap = new Map(ordersData.map((o: any) => [o.id, o]))
+
+  // 以 task 為主體組合資料，inbound 任務對調取件與送達地點
+  const orders = tasks.map((task) => {
+    const order = orderMap.get(task.order_id) as any
+    if (!order)
+      return null
+
     let orderCategory = '未知'
     let lineName = '未提供'
     let phone = '未提供'
-    let deliveryDate = null
     let pickupTime = '-'
-    let luggageCount = 0
 
     if (order.platform_type === 4) {
       orderCategory = '散客'
       const normalOrder = normalOrdersMap.get(order.platform_id)
 
-      if (!normalOrder) {
+      if (!normalOrder)
         return null
-      }
 
       const contacts = normalOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
-      deliveryDate = normalOrder.departure_date
       pickupTime = normalOrder.receive_time || '-'
-      luggageCount = normalOrder.quantity || 0
     }
     else if (order.platform_type === 3) {
       const netOrder = netOrdersMap.get(order.platform_id)
 
-      if (!netOrder) {
+      if (!netOrder)
         return null
-      }
 
-      if (netOrder.platform_type === 1) {
+      if (netOrder.platform_type === 1)
         orderCategory = 'Trip'
-      }
-      else if (netOrder.platform_type === 2) {
+      else if (netOrder.platform_type === 2)
         orderCategory = 'Klook'
-      }
-      else {
+      else
         orderCategory = '合作'
-      }
 
       const contacts = netOrder.contacts as { name?: string, phone?: string } || {}
       lineName = contacts.name || '未提供'
       phone = contacts.phone || '未提供'
-      deliveryDate = netOrder.departure_date
-      luggageCount = netOrder.quantity || 0
     }
 
     const orderStatus = Array.isArray(order.order_status) ? order.order_status[0] : order.order_status
     const startPoint = Array.isArray(order.start_point) ? order.start_point[0] : order.start_point
     const endPoint = Array.isArray(order.end_point) ? order.end_point[0] : order.end_point
 
+    // inbound 任務：取件地點是 end_point，送達地點是 start_point
+    const pickupPoint = task.leg === 'inbound' ? endPoint : startPoint
+    const deliveryPoint = task.leg === 'inbound' ? startPoint : endPoint
+
     return {
       id: order.id.toString(),
+      taskId: task.id.toString(),
+      leg: task.leg,
       category: orderCategory,
       lineName,
       phone,
-      deliveryDate,
+      deliveryDate: task.task_date || null,
       pickupTime,
-      luggageCount,
+      luggageCount: order.luggage_count || 0,
       status: orderStatus?.status || 'pending',
       pickupLocation: {
-        id: startPoint?.id?.toString() || '',
-        name: startPoint?.name || '',
-        address: startPoint?.address || '',
-        area: startPoint?.area || '',
+        id: pickupPoint?.id?.toString() || '',
+        name: pickupPoint?.name || '',
+        address: pickupPoint?.address || '',
+        area: pickupPoint?.area || '',
       },
       deliveryLocation: {
-        id: endPoint?.id?.toString() || '',
-        name: endPoint?.name || '',
-        address: endPoint?.address || '',
-        area: endPoint?.area || '',
+        id: deliveryPoint?.id?.toString() || '',
+        name: deliveryPoint?.name || '',
+        address: deliveryPoint?.address || '',
+        area: deliveryPoint?.area || '',
       },
       notes: order.notes || '',
       createdAt: order.created_at,

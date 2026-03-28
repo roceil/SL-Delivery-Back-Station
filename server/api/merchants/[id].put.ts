@@ -48,6 +48,8 @@ export default defineEventHandler(async (event) => {
       is_collaborate: body.isCollaborate !== undefined ? body.isCollaborate : false,
       max_usage_counts: body.maxUsageCounts || null,
       remarks: body.remarks || null,
+      latitude: body.latitude ? Number.parseFloat(body.latitude) : null,
+      longitude: body.longitude ? Number.parseFloat(body.longitude) : null,
     })
     .eq('id', id)
     .select()

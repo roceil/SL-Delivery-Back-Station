@@ -32,22 +32,23 @@ export default defineEventHandler(async (_event) => {
     // 為每個行程查詢訂單資料
     const tripsWithDetails = await Promise.all(
       schedules.map(async (schedule) => {
-        // 查詢該行程的訂單數量
-        const { data: scheduleOrders, error: ordersError } = await supabase
-          .from('schedule_orders')
+        // 查詢該行程的去程任務
+        const { data: tasks, error: tasksError } = await supabase
+          .from('order_tasks')
           .select('order_id')
           .eq('schedule_id', schedule.id)
+          .eq('leg', 'outbound')
 
-        if (ordersError) {
-          console.error('查詢行程訂單失敗:', ordersError)
+        if (tasksError) {
+          console.error('查詢行程任務失敗:', tasksError)
         }
 
-        const ordersCount = scheduleOrders?.length || 0
+        const ordersCount = tasks?.length || 0
 
         // 如果有訂單，查詢訂單詳情以獲取起點和終點
         let route = '尚未設定路線'
-        if (ordersCount > 0 && scheduleOrders) {
-          const orderIds = scheduleOrders.map(so => so.order_id)
+        if (ordersCount > 0 && tasks) {
+          const orderIds = tasks.map(t => t.order_id)
           const { data: orders, error: orderDetailsError } = await supabase
             .from('orders')
             .select(`

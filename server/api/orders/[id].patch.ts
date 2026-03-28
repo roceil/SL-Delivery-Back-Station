@@ -10,8 +10,8 @@ export default defineEventHandler(async (event) => {
 
   const numericAttempt = Number.parseInt(id)
   const fetchQuery = Number.isNaN(numericAttempt)
-    ? supabase.from('orders').select('id, platform_id, platform_type, status, notes, service_plan, payment_status, return_date, recipient_name, recipient_phone, luggage_count, departure_date, start_point, end_point').eq('order_number', id).single()
-    : supabase.from('orders').select('id, platform_id, platform_type, status, notes, service_plan, payment_status, return_date, recipient_name, recipient_phone, luggage_count, departure_date, start_point, end_point').eq('id', numericAttempt).single()
+    ? supabase.from('orders').select('id, platform_id, platform_type, status, notes, service_plan, payment_status, recipient_name, recipient_phone, luggage_count, start_point, end_point').eq('order_number', id).single()
+    : supabase.from('orders').select('id, platform_id, platform_type, status, notes, service_plan, payment_status, recipient_name, recipient_phone, luggage_count, start_point, end_point').eq('id', numericAttempt).single()
 
   const { data: orderData, error: fetchError } = await fetchQuery
 
@@ -20,6 +20,15 @@ export default defineEventHandler(async (event) => {
   }
 
   const numericId = orderData.id
+
+  // 查詢任務資料（供歷史紀錄比對用）
+  const { data: tasksData } = await supabase
+    .from('order_tasks')
+    .select('id, leg, task_date')
+    .eq('order_id', numericId)
+
+  const outboundTask = tasksData?.find(t => t.leg === 'outbound')
+  const inboundTask = tasksData?.find(t => t.leg === 'inbound')
 
   // 更新 orders 主表欄位
   const orderUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -36,26 +45,38 @@ export default defineEventHandler(async (event) => {
     orderUpdate.service_plan = body.servicePlan
   if (body.paymentStatus !== undefined)
     orderUpdate.payment_status = body.paymentStatus
-  if (body.returnDate !== undefined)
-    orderUpdate.return_date = body.returnDate || null
   if (body.recipientName !== undefined)
     orderUpdate.recipient_name = body.recipientName || null
   if (body.recipientPhone !== undefined)
     orderUpdate.recipient_phone = body.recipientPhone || null
   if (body.luggageCount !== undefined)
     orderUpdate.luggage_count = body.luggageCount
-  if (body.departureDate !== undefined)
-    orderUpdate.departure_date = body.departureDate || null
 
   if (Object.keys(orderUpdate).length > 1) {
     const { error: updateError } = await supabase
       .from('orders')
       .update(orderUpdate)
-      .eq('id', orderData.id)
+      .eq('id', numericId)
 
     if (updateError) {
       throw createError({ statusCode: 500, message: `更新訂單失敗：${updateError.message}` })
     }
+  }
+
+  // 更新去程任務日期
+  if (body.departureDate !== undefined && outboundTask) {
+    await supabase
+      .from('order_tasks')
+      .update({ task_date: body.departureDate || null })
+      .eq('id', outboundTask.id)
+  }
+
+  // 更新回程任務日期（若有回程任務才更新）
+  if (body.returnDate !== undefined && inboundTask) {
+    await supabase
+      .from('order_tasks')
+      .update({ task_date: body.returnDate || null })
+      .eq('id', inboundTask.id)
   }
 
   // 更新子表旅客資訊（contacts / quantity / departure_date）
@@ -66,11 +87,9 @@ export default defineEventHandler(async (event) => {
 
   if (hasSubUpdate) {
     if (orderData.platform_type === 4) {
-      // normal_orders
       const normalUpdate: Record<string, unknown> = {}
-      if (body.passengerName !== undefined || body.passengerPhone !== undefined) {
+      if (body.passengerName !== undefined || body.passengerPhone !== undefined)
         normalUpdate.contacts = { name: body.passengerName, phone: body.passengerPhone }
-      }
       if (body.luggageCount !== undefined)
         normalUpdate.quantity = body.luggageCount
       if (body.departureDate !== undefined)
@@ -86,11 +105,9 @@ export default defineEventHandler(async (event) => {
       }
     }
     else if (orderData.platform_type === 3) {
-      // net_orders
       const netUpdate: Record<string, unknown> = {}
-      if (body.passengerName !== undefined || body.passengerPhone !== undefined) {
+      if (body.passengerName !== undefined || body.passengerPhone !== undefined)
         netUpdate.contacts = { name: body.passengerName, phone: body.passengerPhone }
-      }
       if (body.luggageCount !== undefined)
         netUpdate.quantity = body.luggageCount
       if (body.departureDate !== undefined)
@@ -106,11 +123,9 @@ export default defineEventHandler(async (event) => {
       }
     }
     else if (orderData.platform_type === 5) {
-      // kkday_orders
       const kkdayUpdate: Record<string, unknown> = {}
-      if (body.passengerName !== undefined || body.passengerPhone !== undefined) {
+      if (body.passengerName !== undefined || body.passengerPhone !== undefined)
         kkdayUpdate.contacts = { name: body.passengerName, phone: body.passengerPhone }
-      }
       if (body.luggageCount !== undefined)
         kkdayUpdate.quantity = body.luggageCount
       if (body.departureDate !== undefined)
@@ -140,11 +155,9 @@ export default defineEventHandler(async (event) => {
     { bodyKey: 'notes', dbKey: 'notes', label: '備註' },
     { bodyKey: 'servicePlan', dbKey: 'service_plan', label: '服務方案' },
     { bodyKey: 'paymentStatus', dbKey: 'payment_status', label: '付款狀態' },
-    { bodyKey: 'returnDate', dbKey: 'return_date', label: '回程日期' },
     { bodyKey: 'recipientName', dbKey: 'recipient_name', label: '領件人' },
     { bodyKey: 'recipientPhone', dbKey: 'recipient_phone', label: '領件人電話' },
     { bodyKey: 'luggageCount', dbKey: 'luggage_count', label: '行李件數' },
-    { bodyKey: 'departureDate', dbKey: 'departure_date', label: '去程日期' },
   ]
 
   for (const { bodyKey, dbKey, label } of fieldMap) {
@@ -158,6 +171,34 @@ export default defineEventHandler(async (event) => {
         field_name: label,
         old_value: oldVal != null ? String(oldVal) : null,
         new_value: newVal != null ? String(newVal) : null,
+      })
+    }
+  }
+
+  // 去程日期歷史紀錄（與 order_tasks 比對）
+  if (body.departureDate !== undefined) {
+    const oldVal = outboundTask?.task_date ?? null
+    const newVal = body.departureDate || null
+    if (String(oldVal ?? '') !== String(newVal ?? '')) {
+      historyRecords.push({
+        order_id: numericId,
+        field_name: '去程日期',
+        old_value: oldVal,
+        new_value: newVal,
+      })
+    }
+  }
+
+  // 回程日期歷史紀錄（與 order_tasks 比對）
+  if (body.returnDate !== undefined) {
+    const oldVal = inboundTask?.task_date ?? null
+    const newVal = body.returnDate || null
+    if (String(oldVal ?? '') !== String(newVal ?? '')) {
+      historyRecords.push({
+        order_id: numericId,
+        field_name: '回程日期',
+        old_value: oldVal,
+        new_value: newVal,
       })
     }
   }

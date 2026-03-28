@@ -20,7 +20,6 @@ import {
   UserRound,
   X,
 } from 'lucide-vue-next'
-import { DialogContent, DialogOverlay, DialogPortal, DialogRoot } from 'reka-ui'
 import { Button } from '~/components/ui/button'
 import { Calendar } from '~/components/ui/calendar'
 import { Checkbox } from '~/components/ui/checkbox'
@@ -147,6 +146,12 @@ const returnDateValue = computed<DateValue | undefined>({
   set: val => returnDate.value = val ? val.toString() : '',
 })
 
+const returnDateError = computed(() => {
+  if (!returnDate.value || !departureDate.value)
+    return ''
+  return returnDate.value < departureDate.value ? '回程日期不能早於去程日期' : ''
+})
+
 const sameAsPassenger = ref(false)
 const recipientName = ref('')
 const recipientPhone = ref('')
@@ -185,155 +190,53 @@ const total = computed(() => baseSubtotal.value + (hasAddons.value ? addonSubtot
 
 // ── 商家代售 表單 ────────────────────────────────────
 const merchantStore = ref('')
-const selectedMerchantName = computed(() =>
-  merchants.value?.find(m => String(m.id) === merchantStore.value)?.name ?? '',
+const selectedMerchant = computed(() =>
+  merchants.value?.find(m => String(m.id) === merchantStore.value) ?? null,
 )
-const deliveryDate = ref('')
-const deliveryDateValue = computed<DateValue | undefined>({
-  get: () => deliveryDate.value ? parseDate(deliveryDate.value) : undefined,
-  set: val => deliveryDate.value = val ? val.toString() : '',
+const selectedMerchantName = computed(() => selectedMerchant.value?.name ?? '')
+const merchantTotalLuggage = computed(() => luggageCount.value)
+const merchantRemainingAfter = computed(() => {
+  const m = selectedMerchant.value
+  if (!m || m.maxUsageCounts === null)
+    return null
+  return m.maxUsageCounts - m.usedCounts - merchantTotalLuggage.value
 })
-const courier = ref('')
-const destination = ref('')
-const tripId = ref('')
 
-interface TravelerSpecialItem {
-  name: string
-  unitPrice: number
-  count: number
-}
-
-interface Traveler {
-  name: string
-  phone: string
-  luggageCount: number
-  hasAddon: boolean
-  addonLarge: number
-  addonPro: number
-  specialItems: TravelerSpecialItem[]
-  notes: string
-}
-
-function emptyTraveler(): Traveler {
-  return { name: '', phone: '', luggageCount: 1, hasAddon: false, addonLarge: 0, addonPro: 0, specialItems: [], notes: '' }
-}
-
-const travelers = ref<Traveler[]>([])
-
-const showTravelerModal = ref(false)
-const editingTravelerIndex = ref<number | null>(null)
-
-// Modal 內可同時填多筆草稿（新增模式）或單筆（編輯模式）
-const travelerDrafts = ref<Traveler[]>([])
-const showAddons = ref<boolean[]>([])
-
-function openAddTravelerModal() {
-  editingTravelerIndex.value = null
-  travelerDrafts.value = [emptyTraveler()]
-  showAddons.value = [false]
-  showTravelerModal.value = true
-}
-
-function openEditTravelerModal(i: number) {
-  const src = travelers.value[i]
-  if (!src)
-    return
-  editingTravelerIndex.value = i
-  travelerDrafts.value = [{ ...src, specialItems: src.specialItems.map(s => ({ ...s })) }]
-  showAddons.value = [src.hasAddon]
-  showTravelerModal.value = true
-}
-
-function addAnotherTraveler() {
-  travelerDrafts.value.push(emptyTraveler())
-  showAddons.value.push(false)
-}
-
-function confirmTraveler() {
-  if (editingTravelerIndex.value === null) {
-    for (let di = 0; di < travelerDrafts.value.length; di++) {
-      const src = travelerDrafts.value[di]
-      if (!src)
-        continue
-      const draft: Traveler = { ...src, specialItems: src.specialItems.map(s => ({ ...s })) }
-      draft.hasAddon = showAddons.value[di] ?? false
-      if (!draft.hasAddon) {
-        draft.addonLarge = 0
-        draft.addonPro = 0
-        draft.specialItems = []
-      }
-      travelers.value.push(draft)
-    }
-  }
-  else {
-    const src = travelerDrafts.value[0]
-    if (!src)
-      return
-    const draft: Traveler = { ...src, specialItems: src.specialItems.map(s => ({ ...s })) }
-    draft.hasAddon = showAddons.value[0] ?? false
-    if (!draft.hasAddon) {
-      draft.addonLarge = 0
-      draft.addonPro = 0
-      draft.specialItems = []
-    }
-    travelers.value[editingTravelerIndex.value] = draft
-  }
-  showTravelerModal.value = false
-}
-
-function removeTraveler(i: number) {
-  travelers.value.splice(i, 1)
-}
-
-function addModalSpecialItem(di: number) {
-  travelerDrafts.value[di]?.specialItems.push({ name: '', unitPrice: 0, count: 0 })
-}
-
-function removeModalSpecialItem(di: number, si: number) {
-  travelerDrafts.value[di]?.specialItems.splice(si, 1)
-}
 
 // ── 送出 ─────────────────────────────────────────────
 const router = useRouter()
 
 async function submitForm() {
-  try {
-    const body
-      = orderType.value === 'merchant'
-        ? {
-            type: 'merchant',
-            merchantStore: merchantStore.value,
-            deliveryDate: deliveryDate.value,
-            courier: courier.value,
-            destination: destination.value,
-            tripId: tripId.value,
-            travelers: travelers.value,
-          }
-        : {
-            servicePlan: orderType.value === 'round-trip' ? 'round_trip' : orderType.value === 'one-way' ? 'one_way' : orderType.value,
-            luggageCount: luggageCount.value,
-            hasAddons: hasAddons.value,
-            addonItems: hasAddons.value
-              ? (addonPlans.value ?? [])
-                  .filter(p => getAddonCount(p.id) > 0)
-                  .map(p => ({ id: p.id, name: p.name, unitPrice: p.unitPrice, count: getAddonCount(p.id) }))
-              : [],
-            specialItems: specialItems.value,
-            passengerType: passengerType.value,
-            lineName: passengerName.value,
-            phone: passengerPhone.value,
-            pickupLocationId: pickupLocationId.value,
-            deliveryLocationId: deliveryLocationId.value,
-            deliveryDate: departureDate.value,
-            returnDate: orderType.value === 'round-trip' ? returnDate.value : undefined,
-            sameAsPassenger: sameAsPassenger.value,
-            recipientName: recipientName.value,
-            recipientPhone: recipientPhone.value,
-            notes: notes.value,
-          }
+  if (returnDateError.value)
+    return
 
-    await $fetch('/api/orders', { method: 'POST', body })
-    router.push('/orders')
+  try {
+    const body = {
+      servicePlan: orderType.value === 'round-trip' ? 'round_trip' : orderType.value === 'one-way' ? 'one_way' : 'merchant',
+      merchantStore: orderType.value === 'merchant' ? merchantStore.value : undefined,
+      luggageCount: luggageCount.value,
+      hasAddons: hasAddons.value,
+      addonItems: hasAddons.value
+        ? (addonPlans.value ?? [])
+            .filter(p => getAddonCount(p.id) > 0)
+            .map(p => ({ id: p.id, name: p.name, unitPrice: p.unitPrice, count: getAddonCount(p.id) }))
+        : [],
+      specialItems: specialItems.value,
+      passengerType: passengerType.value,
+      lineName: passengerName.value,
+      phone: passengerPhone.value,
+      pickupLocationId: pickupLocationId.value,
+      deliveryLocationId: deliveryLocationId.value,
+      deliveryDate: departureDate.value,
+      returnDate: orderType.value === 'round-trip' ? returnDate.value : undefined,
+      sameAsPassenger: sameAsPassenger.value,
+      recipientName: recipientName.value,
+      recipientPhone: recipientPhone.value,
+      notes: notes.value,
+    }
+
+    const result = await $fetch<{ id: string }>('/api/orders', { method: 'POST', body })
+    router.push(`/orders/${result.id}`)
   }
   catch (error) {
     console.error('建立訂單失敗:', error)
@@ -438,8 +341,64 @@ async function submitForm() {
           </div>
         </div>
 
-        <!-- ── 雙程套票 / 單程運送 表單 ── -->
-        <template v-if="orderType !== 'merchant'">
+        <!-- ── 共用表單 ── -->
+
+        <!-- 代售商家（商家模式限定） -->
+        <div
+          v-if="orderType === 'merchant'"
+          class="
+            rounded-md bg-white p-6
+            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
+          "
+        >
+          <div class="mb-4 flex items-center gap-2">
+            <Truck class="size-5 text-neutral-600" />
+            <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
+              運送資訊
+            </h2>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium tracking-[0.7px] text-neutral-600">代售商家</label>
+            <Select v-model="merchantStore">
+              <SelectTrigger>
+                <SelectValue placeholder="請選擇商家" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem
+                    v-for="merchant in merchants"
+                    :key="merchant.id"
+                    :value="String(merchant.id)"
+                    :disabled="merchant.maxUsageCounts === null || merchant.maxUsageCounts - merchant.usedCounts <= 0"
+                  >
+                    <div class="flex w-full items-center justify-between">
+                      <span>{{ merchant.name }}</span>
+                      <span
+                        v-if="merchant.maxUsageCounts === null"
+                        class="shrink-0 text-xs text-neutral-400"
+                      >
+                        ｜未設定票數
+                      </span>
+                      <span
+                        v-else-if="merchant.maxUsageCounts - merchant.usedCounts <= 0"
+                        class="shrink-0 text-xs text-danger-300"
+                      >
+                        ｜票數已用完
+                      </span>
+                      <span
+                        v-else
+                        class="shrink-0 text-xs text-neutral-700"
+                      >
+                        ｜剩餘票數： {{ merchant.maxUsageCounts - merchant.usedCounts }} 張
+                      </span>
+                    </div>
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
           <!-- 行李件數 -->
           <div
             class="
@@ -935,10 +894,17 @@ async function submitForm() {
                     <Calendar
                       v-model="returnDateValue"
                       :initial-focus="true"
+                      :min-value="departureDateValue"
                       layout="month-and-year"
                     />
                   </PopoverContent>
                 </Popover>
+                <p
+                  v-if="returnDateError"
+                  class="text-xs text-red-500"
+                >
+                  {{ returnDateError }}
+                </p>
               </div>
             </div>
           </div>
@@ -1036,282 +1002,11 @@ async function submitForm() {
               "
             ></textarea>
           </div>
-        </template>
-
-        <!-- ── 商家代售 表單 ── -->
-        <template v-else>
-          <!-- 運送資訊 -->
-          <div
-            class="
-              rounded-md bg-white p-6
-              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
-            "
-          >
-            <div class="mb-4 flex items-center gap-2">
-              <Truck class="size-5 text-neutral-600" />
-              <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
-                運送資訊
-              </h2>
-            </div>
-            <div class="flex flex-col gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label
-                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-                >代售商家</label>
-                <Select v-model="merchantStore">
-                  <SelectTrigger>
-                    <SelectValue placeholder="請選擇商家" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem
-                        v-for="merchant in merchants"
-                        :key="merchant.id"
-                        :value="String(merchant.id)"
-                      >
-                        <div
-                          class="flex w-full items-center justify-between"
-                        >
-                          <span>{{ merchant.name }}</span>
-                          <span
-                            v-if="merchant.maxUsageCounts !== null"
-                            class="shrink-0 text-xs text-neutral-700"
-                          >
-                            ｜剩於票數： {{ merchant.maxUsageCounts - merchant.usedCounts }} 張
-                          </span>
-                        </div>
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label
-                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-                >運送日期</label>
-                <Popover>
-                  <PopoverTrigger as-child>
-                    <Button
-                      variant="outline"
-                      :class="cn(
-                        `
-                          w-full justify-start rounded-xs border-neutral-200
-                          px-3 py-2 text-sm font-normal tracking-wide
-                          shadow-none
-                        `,
-                        !deliveryDateValue && 'text-neutral-400',
-                      )"
-                    >
-                      <CalendarIcon class="mr-2 size-4" />
-                      {{ deliveryDateValue ? df.format(deliveryDateValue.toDate(getLocalTimeZone())) : '選擇日期' }}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent class="w-auto p-0">
-                    <Calendar
-                      v-model="deliveryDateValue"
-                      :initial-focus="true"
-                      layout="month-and-year"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label
-                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-                >快遞員</label>
-                <Select v-model="courier">
-                  <SelectTrigger>
-                    <SelectValue placeholder="請選擇快遞員" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem
-                        value="placeholder"
-                        disabled
-                      >
-                        請選擇快遞員
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label
-                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-                >目的地</label>
-                <Select v-model="destination">
-                  <SelectTrigger>
-                    <SelectValue placeholder="請選擇目的地" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem
-                        value="placeholder"
-                        disabled
-                      >
-                        請選擇目的地
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label
-                  class="text-sm font-medium tracking-[0.7px] text-neutral-600"
-                >行程編號</label>
-                <Select v-model="tripId">
-                  <SelectTrigger>
-                    <SelectValue placeholder="請選擇行程編號" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem
-                        value="placeholder"
-                        disabled
-                      >
-                        請選擇行程編號
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <!-- 旅客資訊（多位） -->
-          <div
-            class="
-              rounded-md bg-white p-6
-              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
-            "
-          >
-            <div class="mb-4 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <Luggage class="size-5 text-neutral-600" />
-                <h2 class="text-lg font-bold tracking-[0.9px] text-neutral-900">
-                  旅客資訊
-                </h2>
-              </div>
-              <button
-                type="button"
-                class="
-                  flex items-center gap-1.5 rounded-sm border border-primary-300
-                  px-3 py-2 text-base font-medium text-primary-300
-                  hover:bg-primary-100
-                "
-                @click="openAddTravelerModal"
-              >
-                <Plus class="size-5" />
-                新增
-              </button>
-            </div>
-            <div class="flex flex-col gap-2">
-              <div
-                v-if="travelers.length === 0"
-                class="
-                  flex flex-col items-center justify-center gap-2 rounded-sm
-                  border border-neutral-200 bg-neutral-100 p-8
-                "
-              >
-                <p class="text-lg font-bold tracking-[0.9px] text-neutral-900">
-                  尚無資訊
-                </p>
-                <p class="text-center text-sm tracking-[0.7px] text-neutral-600">
-                  請點選「新增一筆」將待補登的旅客資訊加入訂單中
-                </p>
-              </div>
-              <div
-                v-for="(traveler, i) in travelers"
-                :key="i"
-                class="flex items-start gap-3"
-              >
-                <!-- 序號 -->
-                <div
-                  class="
-                    mt-4 flex size-7 shrink-0 items-center justify-center
-                    rounded-full bg-neutral-200 text-sm font-medium
-                    text-neutral-600
-                  "
-                >
-                  {{ i + 1 }}
-                </div>
-
-                <!-- 摘要卡片（view-only） -->
-                <div
-                  class="
-                    flex flex-1 flex-col gap-1 rounded-sm bg-neutral-100 p-4
-                  "
-                >
-                  <div class="flex items-center gap-2">
-                    <p
-                      class="
-                        flex-1 text-lg font-bold tracking-[0.9px]
-                        text-neutral-900
-                      "
-                    >
-                      {{ traveler.name || '（未填寫）' }}
-                    </p>
-                    <div class="flex items-center gap-3">
-                      <button
-                        type="button"
-                        class="
-                          text-sm font-medium text-danger-300
-                          hover:underline
-                        "
-                        @click="removeTraveler(i)"
-                      >
-                        刪除
-                      </button>
-                      <button
-                        type="button"
-                        class="
-                          text-sm font-medium text-primary-300
-                          hover:underline
-                        "
-                        @click="openEditTravelerModal(i)"
-                      >
-                        編輯
-                      </button>
-                    </div>
-                  </div>
-                  <div class="flex flex-col gap-1 text-base tracking-[0.8px]">
-                    <div class="flex gap-2">
-                      <span class="min-w-[76px] text-neutral-600">行李件數</span>
-                      <span class="text-neutral-900">{{ traveler.luggageCount }} 件</span>
-                    </div>
-                    <div class="flex gap-2">
-                      <span class="min-w-[76px] text-neutral-600">聯絡電話</span>
-                      <span class="text-neutral-900">{{ traveler.phone || '—' }}</span>
-                    </div>
-                    <template v-if="traveler.hasAddon && (traveler.addonLarge > 0 || traveler.addonPro > 0)">
-                      <div class="flex items-start gap-2">
-                        <span class="min-w-[76px] shrink-0 text-neutral-600">加值服務</span>
-                        <span class="text-neutral-900">
-                          <template v-if="traveler.addonLarge > 0">大型行李 {{ traveler.addonLarge }} 件</template>
-                          <template v-if="traveler.addonLarge > 0 && traveler.addonPro > 0">、</template>
-                          <template v-if="traveler.addonPro > 0">專業裝備 {{ traveler.addonPro }} 件</template>
-                        </span>
-                      </div>
-                    </template>
-                    <template v-if="traveler.notes">
-                      <div class="flex gap-2">
-                        <span class="min-w-[76px] text-neutral-600">備註</span>
-                        <span class="flex-1 text-neutral-900">{{ traveler.notes }}</span>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
       </div>
 
-      <!-- 右欄：費用明細 / 訂單摘要 -->
+      <!-- 右欄：費用明細 -->
       <div class="sticky top-8 col-span-4">
-        <!-- 雙程 / 單程：費用明細 -->
         <div
-          v-if="orderType !== 'merchant'"
           class="
             flex flex-col gap-4 rounded-md bg-white p-6
             shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
@@ -1321,140 +1016,106 @@ async function submitForm() {
             費用明細
           </h2>
 
-          <!-- 套票小計 -->
-          <div class="flex flex-col gap-2 text-sm">
-            <p class="font-bold text-neutral-900">
-              {{ orderType === 'round-trip' ? '雙程套票' : '單程運送' }}
-            </p>
-            <div class="flex justify-between text-neutral-600">
-              <span>單價</span>
-              <span>NT$ {{ unitPrice }}</span>
-            </div>
-            <div class="flex justify-between text-neutral-600">
-              <span>行李數量</span>
-              <span>{{ luggageCount }} 件</span>
-            </div>
-            <div class="flex justify-between font-medium text-neutral-900">
-              <span>小計</span>
-              <span>NT$ {{ baseSubtotal.toLocaleString() }}</span>
-            </div>
-          </div>
-
-          <!-- 加值服務小計 -->
-          <template v-if="hasAddons && addonSubtotal > 0">
-            <div class="border-t border-neutral-100 pt-3"></div>
+          <!-- 商家代售：票券明細 -->
+          <template v-if="orderType === 'merchant'">
             <div class="flex flex-col gap-2 text-sm">
               <p class="font-bold text-neutral-900">
-                加值服務
+                商家代售
               </p>
-              <template
-                v-for="plan in addonPlans"
-                :key="plan.id"
-              >
-                <div
-                  v-if="getAddonCount(plan.id) > 0"
-                  class="flex justify-between text-neutral-600"
-                >
-                  <span>{{ plan.name }}</span>
-                  <span>{{ getAddonCount(plan.id) }} 件 · NT$ {{ getAddonCount(plan.id) * plan.unitPrice }}</span>
-                </div>
-              </template>
-              <template
-                v-for="item in specialItems"
-                :key="item.name"
-              >
-                <div
-                  v-if="item.count > 0"
-                  class="flex justify-between text-neutral-600"
-                >
-                  <span>{{ item.name || '特殊物件' }}</span>
-                  <span>{{ item.count }} 件 · NT$ {{ item.unitPrice * item.count }}</span>
-                </div>
-              </template>
+              <div class="flex justify-between text-neutral-600">
+                <span>代售商家</span>
+                <span>{{ selectedMerchantName || '—' }}</span>
+              </div>
+              <div class="flex justify-between text-neutral-600">
+                <span>本次使用票券</span>
+                <span>{{ merchantTotalLuggage }} 張</span>
+              </div>
               <div class="flex justify-between font-medium text-neutral-900">
-                <span>小計</span>
-                <span>NT$ {{ addonSubtotal.toLocaleString() }}</span>
+                <span>扣除後剩餘</span>
+                <span>
+                  <template v-if="merchantRemainingAfter === null">—</template>
+                  <template v-else-if="merchantRemainingAfter < 0">
+                    <span class="text-danger-300">票券不足</span>
+                  </template>
+                  <template v-else>{{ merchantRemainingAfter }} 張</template>
+                </span>
+              </div>
+            </div>
+            <div class="border-t border-neutral-200 pt-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-neutral-600">本次扣除</span>
+                <span class="text-xl font-bold text-primary-300">{{ merchantTotalLuggage }} 張</span>
               </div>
             </div>
           </template>
 
-          <!-- 總金額 -->
-          <div class="border-t border-neutral-200 pt-3">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium text-neutral-600">總計</span>
-              <span class="text-xl font-bold text-primary-300">NT$ {{ total.toLocaleString() }}</span>
-            </div>
-          </div>
-
-          <!-- 新增按鈕 -->
-          <button
-            type="button"
-            class="
-              w-full rounded-sm bg-primary-300 py-2.5 text-base font-medium
-              tracking-[0.8px] text-white
-              hover:bg-primary-400
-            "
-            @click="submitForm"
-          >
-            立即新增
-          </button>
-        </div>
-
-        <!-- 商家代售：訂單摘要 -->
-        <div
-          v-else
-          class="
-            flex flex-col gap-4 rounded-md bg-white p-6
-            shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
-          "
-        >
-          <h2 class="text-base font-bold tracking-[0.8px] text-neutral-900">
-            訂單摘要
-          </h2>
-
-          <div class="rounded-sm border border-neutral-200 p-4">
-            <!-- 商家代售 -->
-            <div class="flex flex-col gap-3">
-              <div>
-                <p class="mb-2 text-sm font-bold text-neutral-900">
-                  商家代售
-                </p>
-                <div class="flex flex-col gap-2 text-sm">
-                  <div class="flex gap-2">
-                    <span class="w-[76px] shrink-0 text-neutral-500">代售商家</span>
-                    <span class="text-neutral-900">{{ selectedMerchantName || '—' }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="w-[76px] shrink-0 text-neutral-500">本次旅客</span>
-                    <span class="text-neutral-900">{{ travelers.length }} 位</span>
-                  </div>
-                </div>
+          <!-- 雙程 / 單程：費用明細 -->
+          <template v-else>
+            <!-- 套票小計 -->
+            <div class="flex flex-col gap-2 text-sm">
+              <p class="font-bold text-neutral-900">
+                {{ orderType === 'round-trip' ? '雙程套票' : '單程運送' }}
+              </p>
+              <div class="flex justify-between text-neutral-600">
+                <span>單價</span>
+                <span>NT$ {{ unitPrice }}</span>
               </div>
-
-              <div class="border-t border-neutral-100"></div>
-
-              <!-- 運送資訊 -->
-              <div>
-                <p class="mb-2 text-sm font-bold text-neutral-900">
-                  運送資訊
-                </p>
-                <div class="flex flex-col gap-2 text-sm">
-                  <div class="flex gap-2">
-                    <span class="w-[76px] shrink-0 text-neutral-500">快遞員</span>
-                    <span class="text-neutral-900">{{ courier || '—' }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="w-[76px] shrink-0 text-neutral-500">運送日期</span>
-                    <span class="text-neutral-900">{{ deliveryDate || '—' }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="w-[76px] shrink-0 text-neutral-500">目的地</span>
-                    <span class="text-neutral-900">{{ destination || '—' }}</span>
-                  </div>
-                </div>
+              <div class="flex justify-between text-neutral-600">
+                <span>行李數量</span>
+                <span>{{ luggageCount }} 件</span>
+              </div>
+              <div class="flex justify-between font-medium text-neutral-900">
+                <span>小計</span>
+                <span>NT$ {{ baseSubtotal.toLocaleString() }}</span>
               </div>
             </div>
-          </div>
+
+            <!-- 加值服務小計 -->
+            <template v-if="hasAddons && addonSubtotal > 0">
+              <div class="border-t border-neutral-100 pt-3"></div>
+              <div class="flex flex-col gap-2 text-sm">
+                <p class="font-bold text-neutral-900">
+                  加值服務
+                </p>
+                <template
+                  v-for="plan in addonPlans"
+                  :key="plan.id"
+                >
+                  <div
+                    v-if="getAddonCount(plan.id) > 0"
+                    class="flex justify-between text-neutral-600"
+                  >
+                    <span>{{ plan.name }}</span>
+                    <span>{{ getAddonCount(plan.id) }} 件 · NT$ {{ getAddonCount(plan.id) * plan.unitPrice }}</span>
+                  </div>
+                </template>
+                <template
+                  v-for="item in specialItems"
+                  :key="item.name"
+                >
+                  <div
+                    v-if="item.count > 0"
+                    class="flex justify-between text-neutral-600"
+                  >
+                    <span>{{ item.name || '特殊物件' }}</span>
+                    <span>{{ item.count }} 件 · NT$ {{ item.unitPrice * item.count }}</span>
+                  </div>
+                </template>
+                <div class="flex justify-between font-medium text-neutral-900">
+                  <span>小計</span>
+                  <span>NT$ {{ addonSubtotal.toLocaleString() }}</span>
+                </div>
+              </div>
+            </template>
+
+            <!-- 總金額 -->
+            <div class="border-t border-neutral-200 pt-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-neutral-600">總計</span>
+                <span class="text-xl font-bold text-primary-300">NT$ {{ total.toLocaleString() }}</span>
+              </div>
+            </div>
+          </template>
 
           <!-- 新增按鈕 -->
           <button
@@ -1471,613 +1132,5 @@ async function submitForm() {
         </div>
       </div>
     </div>
-
-    <!-- 旅客資訊 Modal -->
-    <DialogRoot v-model:open="showTravelerModal">
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-black/40" />
-        <DialogContent
-          class="
-            fixed inset-0 z-50 flex items-center justify-center p-6
-            focus:outline-none
-          "
-        >
-          <div
-            class="
-              flex h-[760px] w-[1080px] flex-col overflow-hidden rounded-md
-              border border-neutral-200 bg-white
-              shadow-[0px_4px_12px_0px_rgba(32,78,184,0.04)]
-            "
-          >
-            <!-- Main -->
-            <div class="flex flex-1 overflow-hidden">
-              <!-- 左欄 -->
-              <div
-                class="
-                  flex min-h-0 w-[840px] shrink-0 flex-col gap-4 overflow-y-auto
-                  bg-neutral-100 p-8
-                "
-              >
-                <!-- Header -->
-                <div class="flex items-center gap-1">
-                  <h2
-                    class="
-                      flex-1 text-2xl font-bold tracking-[1.2px]
-                      text-neutral-900
-                    "
-                  >
-                    補登訂單
-                  </h2>
-                  <button
-                    type="button"
-                    class="
-                      rounded-sm border border-primary-300 px-4 py-2 text-sm
-                      font-medium text-primary-300
-                      hover:bg-primary-100
-                    "
-                    @click="addAnotherTraveler"
-                  >
-                    新增一筆
-                  </button>
-                </div>
-                <hr class="border-neutral-200">
-
-                <!-- 旅客表單卡片列表 -->
-                <div
-                  v-for="(draft, di) in travelerDrafts"
-                  :key="di"
-                  class="rounded-sm border border-[#8cbcf1] bg-white"
-                >
-                  <!-- 卡片 header -->
-                  <div
-                    class="
-                      flex items-center gap-2 rounded-t-sm bg-primary-100 px-4
-                      py-3
-                    "
-                  >
-                    <span
-                      class="
-                        flex size-7 items-center justify-center rounded-full
-                        bg-[#eaf5ff] text-xs font-medium text-[#3087db]
-                      "
-                    >{{ di + 1 }}</span>
-                    <p class="flex-1 text-base font-bold text-neutral-900">
-                      請填寫旅客資訊
-                    </p>
-                    <button
-                      v-if="travelerDrafts.length > 1"
-                      type="button"
-                      class="
-                        flex size-7 items-center justify-center rounded-full
-                        text-neutral-500
-                        hover:bg-primary-200 hover:text-neutral-700
-                      "
-                      @click="travelerDrafts.splice(di, 1); showAddons.splice(di, 1)"
-                    >
-                      <X class="size-4" />
-                    </button>
-                  </div>
-
-                  <!-- 表單內容 -->
-                  <div class="flex flex-col gap-4 p-4">
-                    <!-- 姓名 -->
-                    <div class="flex flex-col gap-1.5">
-                      <label class="text-sm font-medium text-neutral-600">姓名</label>
-                      <input
-                        v-model="draft.name"
-                        type="text"
-                        placeholder="旅客姓名"
-                        class="
-                          rounded-xs border border-neutral-200 bg-white px-3
-                          py-2 text-base text-neutral-900 outline-none
-                          placeholder:text-neutral-400
-                          focus:border-primary-300
-                        "
-                      >
-                    </div>
-
-                    <!-- 聯絡電話 + 行李件數 -->
-                    <div class="grid grid-cols-2 gap-3">
-                      <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-neutral-600">聯絡電話</label>
-                        <input
-                          v-model="draft.phone"
-                          type="tel"
-                          placeholder="0912345678"
-                          class="
-                            rounded-xs border border-neutral-200 bg-white px-3
-                            py-2 text-base text-neutral-900 outline-none
-                            placeholder:text-neutral-400
-                            focus:border-primary-300
-                          "
-                        >
-                      </div>
-                      <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-neutral-600">行李件數</label>
-                        <div
-                          class="
-                            flex items-center gap-3 rounded-xs bg-neutral-100
-                            px-3 py-1
-                          "
-                        >
-                          <button
-                            type="button"
-                            class="
-                              flex shrink-0 items-center justify-center
-                              rounded-full p-2
-                              hover:bg-neutral-200
-                              disabled:cursor-not-allowed disabled:opacity-40
-                            "
-                            :disabled="draft.luggageCount <= 1"
-                            @click="draft.luggageCount--"
-                          >
-                            <Minus class="size-5" />
-                          </button>
-                          <span
-                            class="
-                              flex-1 text-center text-base tracking-[0.8px]
-                              text-neutral-900
-                            "
-                          >{{ draft.luggageCount }}</span>
-                          <button
-                            type="button"
-                            class="
-                              flex shrink-0 items-center justify-center
-                              rounded-full p-2
-                              hover:bg-neutral-200
-                            "
-                            @click="draft.luggageCount++"
-                          >
-                            <Plus class="size-5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 備註 -->
-                    <div class="flex flex-col gap-1.5">
-                      <label class="text-sm font-medium text-neutral-600">
-                        備註（選填）
-                      </label>
-                      <textarea
-                        v-model="draft.notes"
-                        rows="3"
-                        maxlength="50"
-                        placeholder="例如行李尺寸、易碎物品等"
-                        class="
-                          w-full resize-none rounded-xs border
-                          border-neutral-200 bg-white px-3 py-2 text-base
-                          text-neutral-900 outline-none
-                          placeholder:text-neutral-400
-                          focus:border-primary-300
-                        "
-                      ></textarea>
-                      <p class="text-right text-xs font-medium text-neutral-600">
-                        {{ draft.notes.length }}/50
-                      </p>
-                    </div>
-
-                    <!-- 加值服務 -->
-                    <div
-                      class="
-                        rounded-sm border border-neutral-200 bg-neutral-50 p-4
-                      "
-                    >
-                      <div
-                        class="flex items-center justify-between"
-                        :class="showAddons[di] ? 'mb-4' : ''"
-                      >
-                        <p class="text-base font-bold text-neutral-900">
-                          加值服務
-                        </p>
-                        <!-- Switch -->
-                        <button
-                          type="button"
-                          role="switch"
-                          :aria-checked="showAddons[di]"
-                          class="
-                            relative inline-flex h-6 w-11 shrink-0
-                            cursor-pointer rounded-full border-2
-                            border-transparent transition-colors
-                            focus-visible:outline-none
-                          "
-                          :class="showAddons[di] ? 'bg-primary-300' : `
-                            bg-neutral-300
-                          `"
-                          @click="showAddons[di] = !showAddons[di]"
-                        >
-                          <span
-                            class="
-                              pointer-events-none inline-block size-5
-                              rounded-full bg-white shadow ring-0
-                              transition-transform
-                            "
-                            :class="showAddons[di] ? 'translate-x-5' : `
-                              translate-x-0
-                            `"
-                          ></span>
-                        </button>
-                      </div>
-
-                      <template v-if="showAddons[di]">
-                        <div class="grid grid-cols-2 gap-4">
-                          <!-- 大型行李箱 -->
-                          <div
-                            class="
-                              flex flex-col gap-3 rounded-sm border
-                              border-neutral-200 bg-white p-4
-                            "
-                          >
-                            <div class="flex items-start gap-3">
-                              <div class="flex flex-1 flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                  <div
-                                    class="
-                                      w-1 self-stretch rounded-xs
-                                      bg-gradient-to-br from-[#4090e8]
-                                      to-[#306cf7]
-                                    "
-                                  ></div>
-                                  <p
-                                    class="
-                                      text-base font-bold tracking-[0.8px]
-                                      text-neutral-900
-                                    "
-                                  >
-                                    大型行李箱
-                                  </p>
-                                </div>
-                                <p class="text-sm text-neutral-600">
-                                  29 寸以上
-                                </p>
-                              </div>
-                              <p
-                                class="
-                                  shrink-0 text-sm font-bold text-primary-300
-                                "
-                              >
-                                +NT$ 50 / 件
-                              </p>
-                            </div>
-                            <div
-                              class="
-                                flex h-10 items-center gap-3 rounded-xs
-                                bg-neutral-100 px-3 py-2
-                              "
-                            >
-                              <button
-                                type="button"
-                                class="
-                                  flex shrink-0 items-center justify-center
-                                  rounded-full p-2
-                                  hover:bg-neutral-200
-                                  disabled:cursor-not-allowed
-                                  disabled:opacity-40
-                                "
-                                :disabled="draft.addonLarge <= 0"
-                                @click="draft.addonLarge--"
-                              >
-                                <Minus class="size-5" />
-                              </button>
-                              <span
-                                class="
-                                  flex-1 text-center text-base tracking-[0.8px]
-                                  text-neutral-900
-                                "
-                              >{{ draft.addonLarge }}</span>
-                              <button
-                                type="button"
-                                class="
-                                  flex shrink-0 items-center justify-center
-                                  rounded-full p-2
-                                  hover:bg-neutral-200
-                                "
-                                @click="draft.addonLarge++"
-                              >
-                                <Plus class="size-5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          <!-- 專業裝備 -->
-                          <div
-                            class="
-                              flex flex-col gap-3 rounded-sm border
-                              border-neutral-200 bg-white p-4
-                            "
-                          >
-                            <div class="flex items-start gap-3">
-                              <div class="flex flex-1 flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                  <div
-                                    class="
-                                      w-1 self-stretch rounded-xs
-                                      bg-gradient-to-br from-[#4090e8]
-                                      to-[#306cf7]
-                                    "
-                                  ></div>
-                                  <p
-                                    class="
-                                      text-base font-bold tracking-[0.8px]
-                                      text-neutral-900
-                                    "
-                                  >
-                                    專業裝備
-                                  </p>
-                                </div>
-                                <p class="text-sm text-neutral-600">
-                                  潛水裝備、高爾夫球袋
-                                </p>
-                              </div>
-                              <p
-                                class="
-                                  shrink-0 text-sm font-bold text-primary-300
-                                "
-                              >
-                                +NT$ 100 / 件
-                              </p>
-                            </div>
-                            <div
-                              class="
-                                flex h-10 items-center gap-3 rounded-xs
-                                bg-neutral-100 px-3 py-2
-                              "
-                            >
-                              <button
-                                type="button"
-                                class="
-                                  flex shrink-0 items-center justify-center
-                                  rounded-full p-2
-                                  hover:bg-neutral-200
-                                  disabled:cursor-not-allowed
-                                  disabled:opacity-40
-                                "
-                                :disabled="draft.addonPro <= 0"
-                                @click="draft.addonPro--"
-                              >
-                                <Minus class="size-5" />
-                              </button>
-                              <span
-                                class="
-                                  flex-1 text-center text-base tracking-[0.8px]
-                                  text-neutral-900
-                                "
-                              >{{ draft.addonPro }}</span>
-                              <button
-                                type="button"
-                                class="
-                                  flex shrink-0 items-center justify-center
-                                  rounded-full p-2
-                                  hover:bg-neutral-200
-                                "
-                                @click="draft.addonPro++"
-                              >
-                                <Plus class="size-5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          <!-- 特殊物件 — col-span-2 -->
-                          <div
-                            class="
-                              col-span-2 flex flex-col gap-3 rounded-sm border
-                              border-neutral-200 bg-white p-4
-                            "
-                          >
-                            <div class="flex items-start justify-between gap-2">
-                              <div class="flex flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                  <div
-                                    class="
-                                      w-1 self-stretch rounded-xs
-                                      bg-gradient-to-br from-[#4090e8]
-                                      to-[#306cf7]
-                                    "
-                                  ></div>
-                                  <p
-                                    class="
-                                      text-base font-bold tracking-[0.8px]
-                                      text-neutral-900
-                                    "
-                                  >
-                                    特殊物件
-                                  </p>
-                                </div>
-                                <p class="text-sm text-neutral-600">
-                                  如衝浪板、腳踏車、嬰兒推車等
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                class="
-                                  flex shrink-0 items-center gap-1.5 rounded-sm
-                                  border border-primary-300 px-3 py-1.5 text-sm
-                                  font-medium text-primary-300
-                                  hover:bg-primary-100
-                                "
-                                @click="addModalSpecialItem(di)"
-                              >
-                                <Plus class="size-4" />
-                                新增物件
-                              </button>
-                            </div>
-                            <template v-if="draft.specialItems.length > 0">
-                              <div
-                                class="
-                                  grid grid-cols-[1fr_1fr_1fr_32px] gap-3
-                                  text-sm font-medium text-neutral-600
-                                "
-                              >
-                                <span>物件</span>
-                                <span>單價 NTD</span>
-                                <span>件數</span>
-                                <span></span>
-                              </div>
-                              <div
-                                v-for="(item, si) in draft.specialItems"
-                                :key="si"
-                                class="
-                                  grid grid-cols-[1fr_1fr_1fr_32px] items-center
-                                  gap-3
-                                "
-                              >
-                                <input
-                                  v-model="item.name"
-                                  type="text"
-                                  placeholder="物件名稱"
-                                  class="
-                                    w-full rounded-xs border border-neutral-200
-                                    px-3 py-2 text-sm outline-none
-                                    focus:border-primary-300
-                                  "
-                                >
-                                <input
-                                  v-model.number="item.unitPrice"
-                                  type="number"
-                                  min="0"
-                                  class="
-                                    w-full rounded-xs border border-neutral-200
-                                    px-3 py-2 text-sm outline-none
-                                    focus:border-primary-300
-                                  "
-                                >
-                                <div
-                                  class="
-                                    flex items-center gap-2 rounded-xs
-                                    bg-neutral-100 px-3 py-1
-                                  "
-                                >
-                                  <button
-                                    type="button"
-                                    class="
-                                      flex shrink-0 items-center justify-center
-                                      rounded-full p-1
-                                      hover:bg-neutral-200
-                                      disabled:opacity-40
-                                    "
-                                    :disabled="item.count <= 0"
-                                    @click="item.count--"
-                                  >
-                                    <Minus class="size-4" />
-                                  </button>
-                                  <span
-                                    class="
-                                      flex-1 text-center text-sm
-                                      text-neutral-900
-                                    "
-                                  >{{ item.count }}</span>
-                                  <button
-                                    type="button"
-                                    class="
-                                      flex shrink-0 items-center justify-center
-                                      rounded-full p-1
-                                      hover:bg-neutral-200
-                                    "
-                                    @click="item.count++"
-                                  >
-                                    <Plus class="size-4" />
-                                  </button>
-                                </div>
-                                <button
-                                  type="button"
-                                  class="
-                                    flex size-8 items-center justify-center
-                                    rounded-full text-neutral-400
-                                    hover:bg-neutral-100 hover:text-neutral-600
-                                  "
-                                  @click="removeModalSpecialItem(di, si)"
-                                >
-                                  <X class="size-4" />
-                                </button>
-                              </div>
-                            </template>
-                          </div>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 右欄：票券資訊 sidebar -->
-              <div
-                class="
-                  relative flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto
-                  p-6
-                "
-              >
-                <p class="text-base font-bold text-neutral-900">
-                  票券資訊
-                </p>
-
-                <!-- 代售商家 -->
-                <div class="rounded-sm border border-neutral-200 p-4">
-                  <p class="mb-1 text-xs font-medium text-neutral-500">
-                    代售商家
-                  </p>
-                  <p class="text-base font-bold text-neutral-900">
-                    {{ selectedMerchantName || '—' }}
-                  </p>
-                </div>
-
-                <!-- 剩餘票券 -->
-                <div class="rounded-sm border border-neutral-200 p-4">
-                  <p class="mb-1 text-xs font-medium text-neutral-500">
-                    剩餘票券
-                  </p>
-                  <p class="text-base font-bold text-neutral-900">
-                    —
-                  </p>
-                </div>
-
-                <!-- 關閉按鈕 -->
-                <button
-                  type="button"
-                  class="
-                    absolute top-2 right-2 flex size-8 items-center
-                    justify-center rounded-full text-neutral-400
-                    hover:bg-neutral-100 hover:text-neutral-600
-                  "
-                  @click="showTravelerModal = false"
-                >
-                  <X class="size-4" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div
-              class="
-                flex gap-2 border-t border-neutral-200 bg-white px-8 py-4
-                shadow-[0px_-4px_20px_0px_rgba(32,78,184,0.12)]
-              "
-            >
-              <button
-                type="button"
-                class="
-                  flex-1 rounded-sm border border-neutral-200 py-2.5 text-base
-                  font-medium text-neutral-700
-                  hover:bg-neutral-50
-                "
-                @click="showTravelerModal = false"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                class="
-                  flex-1 rounded-sm bg-primary-300 py-2.5 text-base font-medium
-                  text-white
-                  hover:bg-primary-400
-                "
-                @click="confirmTraveler"
-              >
-                立即補登
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
   </div>
 </template>
